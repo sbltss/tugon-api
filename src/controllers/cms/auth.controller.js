@@ -85,7 +85,7 @@ export default class Controller {
         return res.status(500).json({ message: "Internal Server Error" });
 
       const lguCode = member.accountType !== "superadmin" ? lgu[0].lguCode : "";
-      
+
       let typeDesc = undefined;
       if (member.accountType === "department") {
         const type = await req.db.query(

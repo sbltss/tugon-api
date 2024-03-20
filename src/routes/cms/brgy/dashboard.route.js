@@ -31,4 +31,6 @@ router.get("/getOngoingEvents", controller.getOngoingEvents);
 
 router.get("/getScheduledEvents", controller.getScheduledEvents);
 
+router.get("/getCountsPerBrgy", controller.getCountsPerBrgy);
+
 export default router;

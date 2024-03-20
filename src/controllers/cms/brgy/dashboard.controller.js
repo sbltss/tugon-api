@@ -109,7 +109,7 @@ export default class Controller {
   }
 
   async getVerifiedCitizensPerSector(req, res, next) {
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let sectors = await req.db.query(
         `
@@ -150,14 +150,14 @@ export default class Controller {
             ORDER BY CF.dateCreated DESC
           ) AD USING(accountId)
           WHERE
-            (RL.brgyId= ? OR AD.brgyId= ? )
+            (RL.cityId= ? OR AD.cityId= ? )
           GROUP BY S.id
           ) AS CS 
           ON CS.id = S.id
          WHERE
           S.isDeleted = 0
       `,
-        [brgyId, brgyId]
+        [cityId, cityId]
       );
 
       return res.status(200).json(sectors);
@@ -168,7 +168,7 @@ export default class Controller {
   }
   async getVerifiedCitizensPerAge(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD");
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
 
     try {
       let ageGroups = await req.db.query(
@@ -235,14 +235,14 @@ export default class Controller {
           ) AD USING(accountId)
           WHERE
             CV.status = "APPROVED" AND 
-            (RL.brgyId = ? OR AD.brgyId = ?) AND
+            (RL.cityId = ? OR AD.cityId = ?) AND
             C.isDeleted = 0
         ) AS ageData
         GROUP BY ageGroup, accountId, firstName, middleName, lastName, birthDate
       ) AS groupedData
       GROUP BY ageGroup
       `,
-        [date, brgyId, brgyId]
+        [date, cityId, cityId]
       );
 
       let address = await req.db.query(`
@@ -268,11 +268,17 @@ export default class Controller {
 
       let result = ageGroups.map((group) => {
         let citizens = group.citizensData.map((citizen) => {
-          let citizenAddress = address.filter((a) => a.accountId === citizen.accountId);
+          let citizenAddress = address.filter(
+            (a) => a.accountId === citizen.accountId
+          );
           citizen.address = citizenAddress;
           return citizen;
         });
-        return { ageGroup: group.ageGroup, count: group.count, citizensData: citizens };
+        return {
+          ageGroup: group.ageGroup,
+          count: group.count,
+          citizensData: citizens,
+        };
       });
 
       return res.status(200).json(result);
@@ -283,7 +289,7 @@ export default class Controller {
   }
 
   async getVerifiedCount(req, res, next) {
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let count = await req.db.query(
         `
@@ -317,10 +323,10 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           CV.status= "APPROVED" AND 
-          (RL.brgyId= ? OR AD.brgyId= ?) AND
+          (RL.cityId= ? OR AD.cityId= ?) AND
           C.isDeleted = 0
       `,
-        [brgyId, brgyId]
+        [cityId, cityId]
       );
 
       return res.status(200).json(count[0].count);
@@ -331,7 +337,7 @@ export default class Controller {
   }
 
   async getUnverifiedCount(req, res, next) {
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let count = await req.db.query(
         `
@@ -347,10 +353,10 @@ export default class Controller {
           USING(accountId)
         WHERE
           CV.status= "PENDING" AND
-          RL.brgyId= ? AND
+          RL.cityId= ? AND
           C.isDeleted = 0
       `,
-        [brgyId]
+        [cityId]
       );
 
       return res.status(200).json(count[0].count);
@@ -362,7 +368,7 @@ export default class Controller {
 
   async getProgramsCount(req, res, next) {
     const { dateFrom, dateTo } = req.body;
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let dateValidation = "";
       let validationParams = [];
@@ -448,12 +454,12 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           CV.status= "APPROVED" AND 
-          (RL.brgyId= ? OR AD.brgyId= ?) AND
+          (RL.cityId= ? OR AD.cityId= ?) AND
           C.isDeleted = 0 AND
           PROG.type IS NOT NULL
         GROUP BY PROG.type
       `,
-        [...validationParams, brgyId, brgyId]
+        [...validationParams, cityId, cityId]
       );
 
       return res.status(200).json(count);
@@ -500,6 +506,58 @@ export default class Controller {
         [date, brgyId]
       );
       return res.status(200).json(events);
+    } catch (err) {
+      console.error(err);
+      next(err);
+    }
+  }
+
+  async getCountsPerBrgy(req, res, next) {
+    const { cityId, brgyId } = req.currentUser;
+    try {
+      const brgys = await req.db.query(
+        `
+        SELECT *
+        FROM brgy
+        WHERE
+          cityCode = ?
+      `,
+        cityId
+      );
+
+      let count = await req.db.query(
+        `
+        SELECT
+          COUNT(CASE WHEN CV.status = 'APPROVED' THEN 1 END) AS verified,
+          COUNT(CASE WHEN CV.status = 'PENDING' THEN 1 END) AS unverified,
+          RL.brgyId
+        FROM
+          citizen_info C
+        LEFT JOIN
+          citizen_verifystatus CV
+          USING(accountId) 
+        LEFT JOIN
+          registration_logs RL
+          USING(accountId)
+        WHERE
+          RL.cityId = ? AND
+          C.isDeleted = 0
+        GROUP BY RL.brgyId
+      `,
+        cityId
+      );
+
+      const result = count.map(({ verified, unverified, brgyId }) => {
+        const foundBrgy = brgys.find((brgy) => brgy.brgyCode === brgyId);
+        return {
+          verified,
+          unverified,
+          brgyId,
+          brgyDesc: foundBrgy ? foundBrgy.brgyDesc : null,
+        };
+      });
+
+      return res.status(200).json(result);
     } catch (err) {
       console.error(err);
       next(err);

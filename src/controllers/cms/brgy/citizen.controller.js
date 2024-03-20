@@ -45,10 +45,12 @@ let validateCitizenName = async (req) => {
 
     if (checkName.length > 0) {
       let filterMatches = checkName.filter((v) => {
-        let matchName = `${v.firstName || ""}${v.middleName || ""}${v.lastName || ""
-          }${v.suffix || ""}`.toLowerCase();
-        let registrantName = `${firstName || ""}${middleName || ""}${lastName || ""
-          }${suffix || ""}`.toLowerCase();
+        let matchName = `${v.firstName || ""}${v.middleName || ""}${
+          v.lastName || ""
+        }${v.suffix || ""}`.toLowerCase();
+        let registrantName = `${firstName || ""}${middleName || ""}${
+          lastName || ""
+        }${suffix || ""}`.toLowerCase();
         return registrantName === matchName;
       });
 
@@ -262,12 +264,12 @@ export default class Controller {
   async searchAddress(req, res, next) {
     //carlo
     let { unitNo, houseNo, street, phase } = req.body;
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let qry = [];
       let param = [];
-      qry.push(`AND A.brgyId = ?`);
-      param.push(brgyId);
+      qry.push(`AND B.cityId = ?`);
+      param.push(cityId);
       if (!global.isEmpty(unitNo)) {
         qry.push(`AND A.unitNo LIKE ?`);
         param.push(`${unitNo}`);
@@ -295,6 +297,7 @@ export default class Controller {
           A.houseNo,
           A.street,
           A.phase, 
+          B.cityId,
           B.brgyDesc,
           B.cityDesc,
           B.provinceDesc,
@@ -353,18 +356,15 @@ export default class Controller {
   async createNewAddress(req, res, next) {
     //carlo
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
-    let { brgyId } = req.currentUser;
     let val = req.body;
     try {
       val.addressCode = (
         await req.db.query(
-          `SELECT fnAddressCodeGen('${brgyId}') as addressCode`
+          `SELECT fnAddressCodeGen('${val.brgyId}') as addressCode`
         )
       )[0].addressCode;
       val.dateCreated = date;
       val.dateUpdated = date;
-      val.brgyId = brgyId;
-      console.log(val);
 
       let result = await req.db.query(
         `
@@ -416,13 +416,13 @@ export default class Controller {
   }
   async searchPhaseAndStreet(req, res, next) {
     let { street, phase, brgyDesc } = req.body;
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
 
     try {
       let qry = [];
       let param = [];
-      qry.push(`AND brgyId = ?`);
-      param.push(brgyId);
+      qry.push(`AND B.cityId = ?`);
+      param.push(cityId);
       if (!global.isEmpty(brgyDesc)) {
         qry.push(`AND brgyDesc LIKE ?`);
         param.push(`${brgyDesc}%`);
@@ -438,17 +438,18 @@ export default class Controller {
 
       let phaseAndStreet = await req.db.query(
         `
-            SELECT
-                id,
-                brgyId,
-                street,
-                phase, 
-                brgyDesc
-            FROM brgy_phase_street 
-            WHERE
-                isDeleted = 0
-                ${qry.join(" ")}
-            `,
+          SELECT
+            P.id,
+            P.brgyId,
+            P.street,
+            P.phase, 
+            P.brgyDesc
+          FROM brgy_phase_street P
+          LEFT JOIN cvms_brgy B ON B.brgyId = P.brgyId
+          WHERE
+            isDeleted = 0
+            ${qry.join(" ")}
+        `,
         param
       );
 
@@ -496,7 +497,10 @@ export default class Controller {
       );
 
       if (existingRecord.length > 0) {
-        return res.status(400).json({ error: 400, message: `Phase or Street has already exists on Barangay ${val.brgyDesc}.` });
+        return res.status(400).json({
+          error: 400,
+          message: `Phase or Street has already exists on Barangay ${val.brgyDesc}.`,
+        });
       }
 
       val.dateCreated = date;
@@ -514,7 +518,9 @@ export default class Controller {
       if (result.insertId > 0) {
         return res.status(200).json({ message: `Inserted Successfully.` });
       } else {
-        return res.status(500).json({ error: 500, message: `Failed to insert.` });
+        return res
+          .status(500)
+          .json({ error: 500, message: `Failed to insert.` });
       }
     } catch (err) {
       next(err);
@@ -522,7 +528,6 @@ export default class Controller {
   }
 
   async updatePhaseAndStreet(req, res, next) {
-
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let { id } = req.params;
     let val = req.body;
@@ -597,7 +602,8 @@ export default class Controller {
   async searchAllCitizen(req, res, next) {
     //carlo
     let { accountId, firstName, middleName, lastName } = req.body;
-    const { accountType, module } = req.currentUser;
+    const { accountType, module, cityId } = req.currentUser;
+    console.log(cityId);
     if (accountType === "brgy" && module === "admin") {
       try {
         let ucon = [];
@@ -636,12 +642,16 @@ export default class Controller {
           LEFT JOIN
             citizen_verifystatus CV
             USING(accountId)
+          LEFT JOIN
+            registration_logs RL
+            USING(accountId)
           WHERE
             CV.status= "APPROVED" AND
+            RL.cityId = ? AND
             C.isDeleted = 0
             ${ucon.join(" ")}
         `,
-          uparam
+          [cityId, uparam]
         );
         let citizenStatus = await req.db.query(
           `
@@ -754,11 +764,15 @@ export default class Controller {
         LEFT JOIN 
           citizen_contacts CC 
           USING(accountId)
+        LEFT JOIN
+          registration_logs RL
+          USING(accountId)
         WHERE
-          C.isDeleted = 0
+          C.isDeleted = 0 AND
+          RL.cityId = ?
           ${ucon.join(" ")}
       `,
-          uparam
+          [cityId, uparam]
         );
         let citizenStatus = await req.db.query(
           `
@@ -841,12 +855,12 @@ export default class Controller {
   async searchCitizen(req, res, next) {
     //carlo
     let { accountId, firstName, middleName, lastName } = req.body;
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let ucon = [];
       let uparam = [];
-      uparam.push(brgyId);
-      uparam.push(brgyId);
+      uparam.push(cityId);
+      uparam.push(cityId);
 
       if (!global.isEmpty(accountId)) {
         ucon.push(`AND accountId = ?`);
@@ -903,7 +917,7 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           C.isDeleted = 0 AND
-          (RL.brgyId= ? OR AD.brgyId= ?)
+          (RL.cityId= ? OR AD.cityId= ?)
           ${ucon.join(" ")}
       `,
         uparam
@@ -1090,10 +1104,12 @@ export default class Controller {
 
       if (checkName.length > 0) {
         let filterMatches = checkName.filter((v) => {
-          let matchName = `${v.firstName || ""}${v.middleName || ""}${v.lastName || ""
-            }${v.suffix || ""}`.toLowerCase();
-          let registrantName = `${firstName || ""}${middleName || ""}${lastName || ""
-            }${suffix || ""}`.toLowerCase();
+          let matchName = `${v.firstName || ""}${v.middleName || ""}${
+            v.lastName || ""
+          }${v.suffix || ""}`.toLowerCase();
+          let registrantName = `${firstName || ""}${middleName || ""}${
+            lastName || ""
+          }${suffix || ""}`.toLowerCase();
           return registrantName === matchName;
         });
         if (filterMatches.length > 0) {
@@ -1158,7 +1174,7 @@ export default class Controller {
 
   async signupCitizen(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
-    let { accountId, regionId, provinceId, cityId, brgyId } = req.currentUser;
+    let { accountId, regionId, provinceId, cityId } = req.currentUser;
     let {
       firstName,
       middleName,
@@ -1169,6 +1185,7 @@ export default class Controller {
       email,
       mobileNumber,
       username,
+      brgyId,
     } = req.body;
 
     try {
@@ -1676,12 +1693,12 @@ export default class Controller {
               `);
               const { uuid } = genUUID;
               let id = files.file[0].path;
-              console.log(id)
+              console.log(id);
               await req.db.query(
                 `
-            INSERT INTO citizen_files
-            SET ?  
-          `,
+                  INSERT INTO citizen_files
+                  SET ?  
+                `,
                 {
                   accountId: accountId,
                   imageId: uuid,
@@ -1690,7 +1707,7 @@ export default class Controller {
                   type: idType,
                   dateCreated: date,
                   dateUpdated: date,
-                },
+                }
               );
             }
           }
@@ -2019,7 +2036,7 @@ export default class Controller {
   }
 
   async getVerifiedCitizens(req, res, next) {
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let citizenInfo = await req.db.query(
         `
@@ -2061,10 +2078,10 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           CV.status= "APPROVED" AND 
-          (RL.brgyId= ? OR AD.brgyId= ?) AND
+          (RL.cityId= ? OR AD.cityId= ?) AND
           C.isDeleted = 0
       `,
-        [brgyId, brgyId]
+        [cityId, cityId]
       );
       let citizenStatus = await req.db.query(
         `
@@ -2138,7 +2155,7 @@ export default class Controller {
   }
 
   async getUnverifiedCitizens(req, res, next) {
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let citizenInfo = await req.db.query(
         `
@@ -2162,10 +2179,10 @@ export default class Controller {
           USING(accountId)
         WHERE
           CV.status= "PENDING" AND
-          RL.brgyId= ? AND
+          RL.cityId = ? AND
           C.isDeleted = 0
       `,
-        [brgyId]
+        [cityId]
       );
       let citizenStatus = await req.db.query(
         `
