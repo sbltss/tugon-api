@@ -1,0 +1,31 @@
+{
+  "presets": ["env"],
+  "plugins": [
+    "transform-object-rest-spread",
+    [
+      "module-resolver",
+      {
+        "alias": {
+          "#controllers": "./src/controllers",
+          "#helpers": "./src/helpers",
+          "#middlewares": "./src/middlewares",
+          "#routes": "./src/routes",
+          "#src": "./src",
+
+          "#citizen_ctrl": "./src/controllers/citizen",
+          "#citizen_ctrl_head": "./src/controllers/citizen/familyhead",
+
+          "#citizen_route": "./src/routes/citizen",
+          "#citizen_route_head": "./src/routes/citizen/familyhead",
+
+          "#cms_ctrl": "./src/controllers/cms",
+          "#cms_route": "./src/routes/cms",
+
+          "#public_ctrl": "./src/controllers/public",
+          "#public_route_extras": "./src/routes/public/extras",
+          "#public_route_citizen": "./src/routes/public/citizen"
+        }
+      }
+    ]
+  ]
+}
