@@ -42,7 +42,12 @@ import enumeratorAuth from "#middlewares/users/cms/auth_cpms_enumerator";
 import adminAuth from "#middlewares/users/cms/auth_admin";
 import superadminAuth from "#middlewares/users/cms/auth_superadmin";
 
+//ELECTION
+import election from "#cms_route/election/election.route";
+
 var router = express.Router();
+
+
 router.use("/auth", auth);
 
 //BRGY
@@ -77,5 +82,8 @@ router.use("/superadmin", superadminAuth, superadmin);
 router.use("/superadmin/sector", superadminAuth, superadminSector);
 router.use("/superadmin/fn", superadminAuth, superpadminFn);
 router.use("/superadmin/dashboard", superadminAuth, superadminDashboard);
+
+//ELECTION
+router.use("/election", election);
 
 export default router;

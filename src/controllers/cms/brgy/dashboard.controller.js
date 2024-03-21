@@ -56,7 +56,6 @@ export default class Controller {
   }
 
   async getEventRecords(req, res, next) {
-    c;
     try {
       let result = await req.db.query(`
         SELECT *
