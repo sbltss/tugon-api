@@ -44,6 +44,7 @@ router.post("/updateAddresses/:id", sanitizer, controller.updateAddresses);
 
 // router.get("/getCitizensList", controller.getCitizensList);
 router.post("/searchCitizen", controller.searchCitizen);
+router.post("/searchAllCitizen", controller.searchAllCitizen);
 router.post(
   "/signupCitizen",
   sanitizer,
@@ -137,5 +138,11 @@ router.post(
 
 router.get("/getVerifiedCitizens", controller.getVerifiedCitizens);
 router.get("/getUnverifiedCitizens", controller.getUnverifiedCitizens);
+router.post("/searchPhaseAndStreet", controller.searchPhaseAndStreet);
+router.post("/createPhaseAndStreet", controller.createPhaseAndStreet);
+router.post("/updatePhaseAndStreet/:id", controller.updatePhaseAndStreet);
+router.get("/getPhaseAndStreet/:brgyId", controller.getPhaseAndStreet);
+router.post("/createNewAddress", controller.createNewAddress);
+router.post("/updateAddresses/:id", controller.updateAddresses);
 
 export default router;

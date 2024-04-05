@@ -167,7 +167,7 @@ export default class Controller {
   }
   async getVerifiedCitizensPerAge(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD");
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
 
     try {
       let ageGroups = await req.db.query(
@@ -234,14 +234,14 @@ export default class Controller {
           ) AD USING(accountId)
           WHERE
             CV.status = "APPROVED" AND 
-            (RL.cityId = ? OR AD.cityId = ?) AND
+            (RL.brgyId = ? OR AD.brgyId = ?) AND
             C.isDeleted = 0
         ) AS ageData
         GROUP BY ageGroup, accountId, firstName, middleName, lastName, birthDate
       ) AS groupedData
       GROUP BY ageGroup
       `,
-        [date, cityId, cityId]
+        [date, brgyId, brgyId]
       );
 
       let address = await req.db.query(`
@@ -288,7 +288,7 @@ export default class Controller {
   }
 
   async getVerifiedCount(req, res, next) {
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
     try {
       let count = await req.db.query(
         `
@@ -322,10 +322,10 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           CV.status= "APPROVED" AND 
-          (RL.cityId= ? OR AD.cityId= ?) AND
+          (RL.brgyId= ? OR AD.brgyId= ?) AND
           C.isDeleted = 0
       `,
-        [cityId, cityId]
+        [brgyId, brgyId]
       );
 
       return res.status(200).json(count[0].count);
@@ -336,7 +336,7 @@ export default class Controller {
   }
 
   async getUnverifiedCount(req, res, next) {
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
     try {
       let count = await req.db.query(
         `
@@ -352,10 +352,10 @@ export default class Controller {
           USING(accountId)
         WHERE
           CV.status= "PENDING" AND
-          RL.cityId= ? AND
+          RL.brgyId= ? AND
           C.isDeleted = 0
       `,
-        [cityId]
+        [brgyId]
       );
 
       return res.status(200).json(count[0].count);
@@ -367,7 +367,7 @@ export default class Controller {
 
   async getProgramsCount(req, res, next) {
     const { dateFrom, dateTo } = req.body;
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
     try {
       let dateValidation = "";
       let validationParams = [];
@@ -375,10 +375,11 @@ export default class Controller {
         dateValidation = "DATEDIFF(dateCreated, ?) = 0";
         validationParams.push(dateFrom);
       } else {
-        dateValidation = "dateCreated BETWEEN ? AND ?";
+        dateValidation = "SUBSTR(dateCreated, 1, 10) BETWEEN ? AND ?";
         validationParams.push(dateFrom);
         validationParams.push(dateTo);
       }
+
       let count = await req.db.query(
         `
         SELECT
@@ -453,12 +454,12 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           CV.status= "APPROVED" AND 
-          (RL.cityId= ? OR AD.cityId= ?) AND
+          (AD.brgyId = ? OR RL.brgyId = ?) AND
           C.isDeleted = 0 AND
           PROG.type IS NOT NULL
         GROUP BY PROG.type
       `,
-        [...validationParams, cityId, cityId]
+        [...validationParams, brgyId, brgyId]
       );
 
       return res.status(200).json(count);
@@ -513,37 +514,54 @@ export default class Controller {
 
   async getCountsPerBrgy(req, res, next) {
     const { cityId, brgyId } = req.currentUser;
+    console.log(brgyId);
     try {
       const brgys = await req.db.query(
         `
         SELECT *
         FROM brgy
         WHERE
-          cityCode = ?
+          brgyCode = ?
       `,
-        cityId
+        brgyId
       );
 
       let count = await req.db.query(
         `
         SELECT
           COUNT(CASE WHEN CV.status = 'APPROVED' THEN 1 END) AS verified,
-          COUNT(CASE WHEN CV.status = 'PENDING' THEN 1 END) AS unverified,
-          RL.brgyId
+          COUNT(CASE WHEN CV.status = 'PENDING' THEN 1 END) AS unverified
         FROM
           citizen_info C
         LEFT JOIN
           citizen_verifystatus CV
           USING(accountId) 
+        LEFT JOIN(
+          SELECT 
+            CF.addressCode,
+            CA.brgyId,
+            CF.accountId,
+            BR.cityCode AS cityId
+          FROM 
+            cvms_familymembers CF
+          LEFT JOIN
+            cvms_addresses CA 
+            USING(addressCode)
+          LEFT JOIN
+            brgy BR
+            ON BR.brgyCode = CA.brgyId
+          WHERE
+            CF.isDeleted= 0
+          ORDER BY CF.dateCreated DESC
+        ) AD USING(accountId)
         LEFT JOIN
           registration_logs RL
           USING(accountId)
         WHERE
-          RL.cityId = ? AND
+          (RL.brgyId = ? OR AD.brgyId = ?) AND
           C.isDeleted = 0
-        GROUP BY RL.brgyId
       `,
-        cityId
+        [brgyId, brgyId]
       );
 
       const result = count.map(({ verified, unverified, brgyId }) => {

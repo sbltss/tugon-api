@@ -15,6 +15,107 @@ let jwtSecret =
     ? process.env.jwtSecretKey
     : process.env.jwtSecretKeyProd;
 export default class Controller {
+  // async login(req, res, next) {
+  //   let { email, password } = req.body;
+  //   try {
+  //     const result = await req.db.query(
+  //       `SELECT
+  //         accountId,
+  //         email,
+  //         accountType,
+  //         isDeleted,
+  //         password
+  //       FROM
+  //         credentials
+  //       WHERE
+  //         email  = ?`,
+  //       [email]
+  //     );
+
+  //     let member = result[0];
+
+  //     if (!member)
+  //       return res.status(401).json({ message: "Account does not exist" });
+  //     const validPassword = await hash.comparePassword(
+  //       password,
+  //       member.password
+  //     );
+
+  //     if (!validPassword)
+  //       if (password != member.password)
+  //         return res.status(401).json({ message: "Invalid Credentials" });
+
+  //     if (member.isDeleted != "0")
+  //       return res.status(401).json({ message: "Account is deactivated" });
+
+  //     let table;
+  //     if (member.accountType === "superadmin") table = "superadmins";
+  //     if (member.accountType === "brgy") table = "brgy_users";
+  //     if (member.accountType === "department") table = "department_users";
+
+  //     const result2 = await req.db.query(
+  //       `SELECT A.*, B.brgyDesc
+  //        FROM ${table} A
+  //        LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+  //        WHERE
+  //        A.accountId = ?`,
+  //       [member.accountId]
+  //     );
+
+  //     delete result2.password;
+  //     delete result2.isDeleted;
+  //     delete member.password;
+  //     const memberInfo = result2[0];
+  //     if (!memberInfo)
+  //       return res.status(500).json({ message: "Internal Server Error" });
+
+  //     const lgu = await req.db.query(
+  //       `
+  //       SELECT
+  //         lguCode
+  //       FROM
+  //         municipalities
+  //       WHERE
+  //         cityCode= ?
+  //     `,
+  //       [memberInfo.cityId]
+  //     );
+
+  //     if (!lgu[0] && member.accountType !== "superadmin")
+  //       return res.status(500).json({ message: "Internal Server Error" });
+
+  //     const lguCode = member.accountType !== "superadmin" ? lgu[0].lguCode : "";
+
+  //     let typeDesc = undefined;
+  //     if (member.accountType === "department") {
+  //       const type = await req.db.query(
+  //         `
+  //         SELECT
+  //           type
+  //         FROM
+  //           department_types
+  //         WHERE
+  //           id= ?
+  //       `,
+  //         memberInfo.type
+  //       );
+
+  //       if (type.length > 0) typeDesc = type[0].type;
+  //     }
+
+  //     let payload = { accountId: member.accountId };
+  //     let token = jwt.sign(payload, jwtSecret);
+
+  //     return res.json({
+  //       data: { ...member, ...memberInfo, typeDesc, lguCode },
+  //       token: token,
+  //       isDefaultPass: ["Barangay2023"].includes(password),
+  //     });
+  //   } catch (err) {
+  //     console.error(err);
+  //     next(err);
+  //   }
+  // }
   async login(req, res, next) {
     let { email, password } = req.body;
     try {
@@ -52,15 +153,37 @@ export default class Controller {
       if (member.accountType === "superadmin") table = "superadmins";
       if (member.accountType === "brgy") table = "brgy_users";
       if (member.accountType === "department") table = "department_users";
+      if (member.accountType === "city") table = "city_users";
 
-      const result2 = await req.db.query(
-        `SELECT A.*, B.brgyDesc
+      let result2;
+      if (member.accountType === "superadmin") {
+        result2 = await req.db.query(
+          `SELECT *
+           FROM ${table}
+           WHERE 
+           accountId = ?`,
+          [member.accountId]
+        );
+      } else if (member.accountType === "department") {
+        result2 = await req.db.query(
+          `SELECT A.*, B.brgyDesc, CU.*
+         FROM ${table} A
+         LEFT JOIN city_users CU ON CU.accountId = A.cityAccountId
+         LEFT JOIN cvms_brgy B ON B.cityId = CU.cityId
+         WHERE 
+         A.accountId = ?`,
+          [member.accountId]
+        );
+      } else {
+        result2 = await req.db.query(
+          `SELECT A.*, B.brgyDesc
          FROM ${table} A
          LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
          WHERE 
          A.accountId = ?`,
-        [member.accountId]
-      );
+          [member.accountId]
+        );
+      }
 
       delete result2.password;
       delete result2.isDeleted;

@@ -18,6 +18,8 @@ import brgyEstablishment from "#cms_route/brgy/establishment.route";
 import deptAdmin from "#cms_route/dept/admin.route";
 import deptCitizen from "#cms_route/dept/citizen.route";
 import deptDashboard from "#cms_route/dept/dashboard.route";
+import deptSeniorId from "#cms_route/dept/seniorid.route";
+import deptCertification from "#cms_route/dept/certification.route";
 
 //CPMS
 import employee from "#cms_route/cpms/employee.route";
@@ -47,7 +49,6 @@ import election from "#cms_route/election/election.route";
 
 var router = express.Router();
 
-
 router.use("/auth", auth);
 
 //BRGY
@@ -66,6 +67,8 @@ router.use("/brgy/establishment", brgyEmpAuth, brgyEstablishment);
 router.use("/dept/admin", deptEmpAuth, deptAdmin);
 router.use("/dept/citizen", deptEmpAuth, deptCitizen);
 router.use("/dept/dashboard", deptEmpAuth, deptDashboard);
+router.use("/dept/seniorId", deptEmpAuth, deptSeniorId);
+router.use("/dept/certification", deptEmpAuth, deptCertification);
 
 //CPMS
 router.use("/cpms/employee", employeeAuth, employee);

@@ -9,15 +9,15 @@ import audit from "#helpers/audit";
 import unlinkFiles from "#helpers/unlinkfiles";
 
 export default class Controller {
-  async getCertification(req, res, next) {
+  async getSeniorIds(req, res, next) {
     try {
       let result = await req.db.query(
         `
       SELECT 
-        C.certificationId,
-        C.accountId,
-        C.formVal,
-        C.certificationType,
+        ID.idNumber,
+        ID.accountId,
+        ID.type AS idType,
+        ID.dateCreated,
         I.firstName,
         I.middleName,
         I.lastName,
@@ -27,33 +27,33 @@ export default class Controller {
         F.imageId,
         F.image,
         F.module,
-        F.type,
-        C.dateCreated 
-      FROM department_certification C
-      LEFT JOIN citizen_info I ON I.accountId = C.accountId
-      LEFT JOIN citizen_files F ON F.imageId = C.fileId
+        F.type
+      FROM department_senior_id ID
+      LEFT JOIN citizen_info I ON I.accountId = ID.accountId
+      LEFT JOIN citizen_files F ON F.imageId = ID.fileId
       WHERE 
-        C.isDeleted = 0 AND
+        ID.isDeleted = 0 AND
         F.type = ? AND
         F.module = ?
       `,
-        ["CERTIFICATION", "DEPARTMENT"]
+        ["SENIORID", "DEPARTMENT"]
       );
       return res.status(200).json(result);
     } catch (err) {
       next(err);
     }
   }
-  async getCertificationById(req, res, next) {
+
+  async getSeniorIdsById(req, res, next) {
     let { id } = req.params;
     try {
       let result = await req.db.query(
         `
       SELECT 
-        C.certificationId,
-        C.accountId,
-        C.formVal,
-        C.certificationType,
+        ID.idNumber,
+        ID.accountId,
+        ID.type AS idType,
+        ID.dateCreated,
         I.firstName,
         I.middleName,
         I.lastName,
@@ -63,33 +63,33 @@ export default class Controller {
         F.imageId,
         F.image,
         F.module,
-        F.type,
-        C.dateCreated 
-      FROM department_certification C
-      LEFT JOIN citizen_info I ON I.accountId = C.accountId
-      LEFT JOIN citizen_files F ON F.imageId = C.fileId
+        F.type
+      FROM department_senior_id ID
+      LEFT JOIN citizen_info I ON I.accountId = ID.accountId
+      LEFT JOIN citizen_files F ON F.imageId = ID.fileId
       WHERE 
-        C.isDeleted = 0 AND
+        ID.isDeleted = 0 AND
         F.type = ? AND
         F.module = ? AND
-        C.accountId = ?
+        ID.accountId = ?
       `,
-        ["CERTIFICATION", "DEPARTMENT", id]
+        ["SENIORID", "DEPARTMENT", id]
       );
       return res.status(200).json(result);
     } catch (err) {
       next(err);
     }
   }
-  async createCertification(req, res, next) {
+
+  async createSeniorId(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let {
-      accountId: brgyUid,
+      accountId: departmentUid,
       module: mdl,
       accountType,
       section,
     } = req.currentUser;
-    let { accountId, formVal, certificationType } = req.body;
+    let { accountId, idNumber } = req.body;
     let files = req.files;
     let transaction;
     try {
@@ -98,17 +98,34 @@ export default class Controller {
           error: 400,
           message: "No files were uploaded",
         });
-      } else if (isEmpty(files.certification)) {
+      } else if (isEmpty(files.documentImage)) {
         return res.status(400).json({
           error: 400,
           message: "No files were uploaded",
         });
       }
+
+      const checkSeniorId = await req.db.query(
+        `
+        SELECT *
+        FROM 
+          department_senior_id
+        WHERE
+          idNumber=?
+      `,
+        idNumber
+      );
+
+      if (checkSeniorId.length > 1)
+        return res
+          .status(409)
+          .json({ error: 409, message: "Duplicate senior id" });
+
       transaction = await req.db.getConnection();
 
       await transaction.beginTransaction();
 
-      let icn = files.certification[0].path;
+      let icn = files.documentImage[0].path;
       let [genUUID] = await transaction.query(`SELECT UUID() AS uuid`);
       const { uuid } = genUUID[0];
       let [insert] = await transaction.query(
@@ -122,7 +139,7 @@ export default class Controller {
             imageId: uuid,
             image: icn,
             module: "DEPARTMENT",
-            type: "certification",
+            type: "SENIORID",
             dateCreated: date,
             dateUpdated: date,
           },
@@ -131,24 +148,21 @@ export default class Controller {
       if (!insert.insertId) {
         throw {
           error: 500,
-          loc: "certification file",
+          loc: "add seniorid file",
           message: "An error occurred. Please try again",
         };
       }
-      let [genUUIDFile] = await transaction.query(`SELECT UUID() AS uuidFile`);
-      const { uuidFile } = genUUIDFile[0];
       let [insertRecord] = await transaction.query(
         `
-        INSERT INTO department_certification
+        INSERT INTO department_senior_id
         SET ?  
       `,
         [
           {
-            certificationId: uuidFile,
+            idNumber: idNumber,
             accountId: accountId,
-            formVal: JSON.stringify(JSON.parse(formVal)),
+            type: "department_senior_id",
             fileId: uuid,
-            certificationType: certificationType,
             dateCreated: date,
             dateUpdated: date,
           },
@@ -157,16 +171,15 @@ export default class Controller {
       if (!insertRecord.insertId) {
         throw {
           error: 500,
-          loc: "certification form",
+          loc: "add seniorId number",
           message: "An error occurred. Please try again",
         };
       }
-
       let auditObj = {
-        createdBy: brgyUid,
+        createdBy: departmentUid,
         accountId: accountId,
         userPriviledge: `${mdl}:${accountType}:${section}`,
-        actionType: `UPLOAD CERTIFICATION ${certificationType}`,
+        actionType: "UPLOAD SENIORID",
         crud: "CREATE",
         newValue: JSON.stringify({ body: req.body, files: req.files }),
         dateCreated: date,
@@ -179,6 +192,7 @@ export default class Controller {
       await transaction.release();
       res.status(200).json({ message: "Files uploaded successfully" });
     } catch (err) {
+      console.log(err);
       unlinkFiles.unlinkProfileFiles(req.files);
       await transaction.rollback();
       await transaction.release();

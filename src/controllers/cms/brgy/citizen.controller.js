@@ -264,12 +264,12 @@ export default class Controller {
   async searchAddress(req, res, next) {
     //carlo
     let { unitNo, houseNo, street, phase } = req.body;
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
     try {
       let qry = [];
       let param = [];
-      qry.push(`AND B.cityId = ?`);
-      param.push(cityId);
+      qry.push(`AND B.brgyId = ?`);
+      param.push(brgyId);
       if (!global.isEmpty(unitNo)) {
         qry.push(`AND A.unitNo LIKE ?`);
         param.push(`${unitNo}`);
@@ -357,10 +357,11 @@ export default class Controller {
     //carlo
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let val = req.body;
+    let { regionId, provinceId, cityId, brgyId } = req.currentUser;
     try {
       val.addressCode = (
         await req.db.query(
-          `SELECT fnAddressCodeGen('${val.brgyId}') as addressCode`
+          `SELECT fnAddressCodeGen('${brgyId}') as addressCode`
         )
       )[0].addressCode;
       val.dateCreated = date;
@@ -371,7 +372,7 @@ export default class Controller {
         INSERT INTO cvms_addresses
         SET ?
       `,
-        val
+        [{ ...val, regionId, provinceId, cityId, brgyId }]
       );
 
       if (result.insertId > 0) {
@@ -602,9 +603,8 @@ export default class Controller {
   async searchAllCitizen(req, res, next) {
     //carlo
     let { accountId, firstName, middleName, lastName } = req.body;
-    const { accountType, module, cityId } = req.currentUser;
-    console.log(cityId);
-    if (accountType === "brgy" && module === "admin") {
+    const { accountType, module, brgyId, cityId } = req.currentUser;
+    if (accountType === "brgy") {
       try {
         let ucon = [];
         let uparam = [];
@@ -625,16 +625,17 @@ export default class Controller {
           ucon.push(`AND lastName LIKE ?`);
           uparam.push(`${lastName}%`);
         }
+
         let citizenInfo = await req.db.query(
           `
-          SELECT 
+          SELECT
             C.*,
             CR.username,
             CC.primaryEmail,
             CC.primaryMobile
-          FROM 
+          FROM
             citizen_info C
-          LEFT JOIN 
+          LEFT JOIN
             citizen_contacts CC USING(accountId)
           LEFT JOIN
             citizen_credential CR
@@ -643,38 +644,44 @@ export default class Controller {
             citizen_verifystatus CV
             USING(accountId)
           LEFT JOIN
+            cvms_familymembers CF 
+            USING(accountId)
+          LEFT JOIN
+            cvms_addresses CA 
+            ON CA.addressCode = CF.addressCode
+          LEFT JOIN
             registration_logs RL
             USING(accountId)
           WHERE
-            CV.status= "APPROVED" AND
-            RL.cityId = ? AND
-            C.isDeleted = 0
+            (CA.brgyId = ? OR RL.brgyId = ?) AND 
+            C.isDeleted = 0 AND
+            (CF.isDeleted = 0 OR CF.isDeleted IS NULL)
             ${ucon.join(" ")}
         `,
-          [cityId, uparam]
+          [brgyId, brgyId, uparam]
         );
         let citizenStatus = await req.db.query(
           `
           SELECT *
           FROM citizen_verifystatus
-          WHERE 
+          WHERE
             services IN ("PROFILE","CVMS")
         `
         );
         let citizenFiles = await req.db.query(
           `
           SELECT *
-          FROM 
+          FROM
             citizen_files
           WHERE
-            module = ? AND 
+            module = ? AND
             isDeleted = ?
         `,
           ["PROFILE", 0]
         );
 
         let address = await req.db.query(`
-          SELECT 
+          SELECT
             F.householdId,
             F.addressCode,
             F.accountId,
@@ -752,8 +759,8 @@ export default class Controller {
         }
         let citizenInfo = await req.db.query(
           `
-        SELECT 
-          C.*, 
+        SELECT
+          C.*,
           CR.username,
           CC.primaryEmail,
           CC.primaryMobile
@@ -761,8 +768,8 @@ export default class Controller {
         LEFT JOIN
           citizen_credential CR
           USING(accountId)
-        LEFT JOIN 
-          citizen_contacts CC 
+        LEFT JOIN
+          citizen_contacts CC
           USING(accountId)
         LEFT JOIN
           registration_logs RL
@@ -778,24 +785,24 @@ export default class Controller {
           `
         SELECT *
         FROM citizen_verifystatus
-        WHERE 
+        WHERE
           services IN ("PROFILE","CVMS")
       `
         );
         let citizenFiles = await req.db.query(
           `
         SELECT *
-        FROM 
+        FROM
           citizen_files
         WHERE
-          module = ? AND 
+          module = ? AND
           isDeleted = ?
       `,
           ["PROFILE", 0]
         );
 
         let address = await req.db.query(`
-        SELECT 
+        SELECT
           F.householdId,
           F.addressCode,
           F.accountId,
@@ -852,15 +859,266 @@ export default class Controller {
       }
     }
   }
+
+  // async searchAllCitizen(req, res, next) {
+  //   let { accountId, firstName, middleName, lastName } = req.body;
+  //   const { accountType, module, brgyId } = req.currentUser;
+  //   if (accountType === "brgy" && module === "admin") {
+  //     try {
+  //       let ucon = [];
+  //       let uparam = [];
+
+  //       if (!global.isEmpty(accountId)) {
+  //         ucon.push(`AND accountId = ?`);
+  //         uparam.push(accountId);
+  //       }
+  //       if (!global.isEmpty(firstName)) {
+  //         ucon.push(`AND firstName LIKE ?`);
+  //         uparam.push(`${firstName}%`);
+  //       }
+  //       if (!global.isEmpty(middleName)) {
+  //         ucon.push(`AND middleName LIKE ?`);
+  //         uparam.push(`${middleName}%`);
+  //       }
+  //       if (!global.isEmpty(lastName)) {
+  //         ucon.push(`AND lastName LIKE ?`);
+  //         uparam.push(`${lastName}%`);
+  //       }
+  //       let citizenInfo = await req.db.query(
+  //         `
+  //         SELECT
+  //           C.*,
+  //           CR.username,
+  //           CC.primaryEmail,
+  //           CC.primaryMobile
+  //         FROM
+  //           citizen_info C
+  //         LEFT JOIN
+  //           citizen_contacts CC USING(accountId)
+  //         LEFT JOIN
+  //           citizen_credential CR
+  //           USING(accountId)
+  //         LEFT JOIN
+  //           citizen_verifystatus CV
+  //           USING(accountId)
+  //         LEFT JOIN
+  //           registration_logs RL
+  //           USING(accountId)
+  //         WHERE
+  //           CV.status= "APPROVED" AND
+  //           RL.brgyId = ? AND
+  //           C.isDeleted = 0
+  //           ${ucon.join(" ")}
+  //       `,
+  //         [brgyId, uparam]
+  //       );
+  //       let citizenStatus = await req.db.query(
+  //         `
+  //         SELECT *
+  //         FROM citizen_verifystatus
+  //         WHERE
+  //           services IN ("PROFILE","CVMS")
+  //       `
+  //       );
+  //       let citizenFiles = await req.db.query(
+  //         `
+  //         SELECT *
+  //         FROM
+  //           citizen_files
+  //         WHERE
+  //           module = ? AND
+  //           isDeleted = ?
+  //       `,
+  //         ["PROFILE", 0]
+  //       );
+
+  //       let address = await req.db.query(`
+  //         SELECT
+  //           F.householdId,
+  //           F.addressCode,
+  //           F.accountId,
+  //           F.familyType,
+  //           F.familyRelation,
+  //           A.unitNo,
+  //           A.houseNo,
+  //           A.street,
+  //           A.phase,
+  //           B.brgyId,
+  //           B.brgyDesc,
+  //           B.cityDesc,
+  //           B.provinceDesc,
+  //           B.regionDesc,
+  //           F.verifiedBy,
+  //           F.dateCreated,
+  //           BU.module AS vModule,
+  //           BU.firstName AS vFirstName,
+  //           BU.lastName AS vLastName,
+  //           BU.contactNumber AS vContactNumber
+  //         FROM cvms_familymembers F
+  //         LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+  //         LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+  //         LEFT JOIN brgy_users BU ON BU.accountId = F.verifiedBy
+  //       `);
+  //       let sectors = await req.db.query(`
+  //         SELECT
+  //           S.accountId,
+  //           S.sectorId,
+  //           C.name,
+  //           C.requirements
+  //         FROM citizen_sectors S
+  //         LEFT JOIN cms_sectors C ON C.id = S.sectorId
+  //         WHERE
+  //           S.isDeleted = 0
+  //       `);
+  //       let result = citizenInfo.map((i) => {
+  //         let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+  //         let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+  //         let adds = address.filter((a) => a.accountId === i.accountId);
+  //         let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+  //         i.status = status[0].status;
+  //         i.files = files;
+  //         i.address = adds;
+  //         i.sectors = sect;
+  //         return i;
+  //       });
+
+  //       return res.status(200).json(result);
+  //     } catch (err) {
+  //       console.error(err);
+  //       next(err);
+  //     }
+  //   } else {
+  //     try {
+  //       let ucon = [];
+  //       let uparam = [];
+
+  //       if (!global.isEmpty(accountId)) {
+  //         ucon.push(`AND accountId = ?`);
+  //         uparam.push(accountId);
+  //       }
+  //       if (!global.isEmpty(firstName)) {
+  //         ucon.push(`AND firstName LIKE ?`);
+  //         uparam.push(`${firstName}%`);
+  //       }
+  //       if (!global.isEmpty(middleName)) {
+  //         ucon.push(`AND middleName LIKE ?`);
+  //         uparam.push(`${middleName}%`);
+  //       }
+  //       if (!global.isEmpty(lastName)) {
+  //         ucon.push(`AND lastName LIKE ?`);
+  //         uparam.push(`${lastName}%`);
+  //       }
+  //       let citizenInfo = await req.db.query(
+  //         `
+  //       SELECT
+  //         C.*,
+  //         CR.username,
+  //         CC.primaryEmail,
+  //         CC.primaryMobile
+  //       FROM citizen_info C
+  //       LEFT JOIN
+  //         citizen_credential CR
+  //         USING(accountId)
+  //       LEFT JOIN
+  //         citizen_contacts CC
+  //         USING(accountId)
+  //       LEFT JOIN
+  //         registration_logs RL
+  //         USING(accountId)
+  //       WHERE
+  //         C.isDeleted = 0 AND
+  //         RL.cityId = ?
+  //         ${ucon.join(" ")}
+  //     `,
+  //         [cityId, uparam]
+  //       );
+  //       let citizenStatus = await req.db.query(
+  //         `
+  //       SELECT *
+  //       FROM citizen_verifystatus
+  //       WHERE
+  //         services IN ("PROFILE","CVMS")
+  //     `
+  //       );
+  //       let citizenFiles = await req.db.query(
+  //         `
+  //       SELECT *
+  //       FROM
+  //         citizen_files
+  //       WHERE
+  //         module = ? AND
+  //         isDeleted = ?
+  //     `,
+  //         ["PROFILE", 0]
+  //       );
+
+  //       let address = await req.db.query(`
+  //       SELECT
+  //         F.householdId,
+  //         F.addressCode,
+  //         F.accountId,
+  //         F.familyType,
+  //         F.familyRelation,
+  //         A.unitNo,
+  //         A.houseNo,
+  //         A.street,
+  //         A.phase,
+  //         B.brgyId,
+  //         B.brgyDesc,
+  //         B.cityDesc,
+  //         B.provinceDesc,
+  //         B.regionDesc,
+  //         F.verifiedBy,
+  //         F.dateCreated,
+  //         BU.module AS vModule,
+  //         BU.firstName AS vFirstName,
+  //         BU.lastName AS vLastName,
+  //         BU.contactNumber AS vContactNumber
+  //       FROM cvms_familymembers F
+  //       LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+  //       LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+  //       LEFT JOIN brgy_users BU ON BU.accountId = F.verifiedBy
+  //     `);
+  //       let sectors = await req.db.query(`
+  //       SELECT
+  //         S.accountId,
+  //         S.sectorId,
+  //         C.name,
+  //         C.requirements
+  //       FROM citizen_sectors S
+  //       LEFT JOIN cms_sectors C ON C.id = S.sectorId
+  //       WHERE
+  //         S.isDeleted = 0
+  //     `);
+  //       let result = citizenInfo.map((i) => {
+  //         let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+  //         let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+  //         let adds = address.filter((a) => a.accountId === i.accountId);
+  //         let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+  //         i.status = status[0].status;
+  //         i.files = files;
+  //         i.address = adds;
+  //         i.sectors = sect;
+  //         return i;
+  //       });
+
+  //       return res.status(200).json(result);
+  //     } catch (err) {
+  //       console.error(err);
+  //       next(err);
+  //     }
+  //   }
+  // }
+
   async searchCitizen(req, res, next) {
     //carlo
     let { accountId, firstName, middleName, lastName } = req.body;
-    const { cityId } = req.currentUser;
+    const { regionId, provinceId, cityId, brgyId } = req.currentUser;
     try {
       let ucon = [];
       let uparam = [];
-      uparam.push(cityId);
-      uparam.push(cityId);
 
       if (!global.isEmpty(accountId)) {
         ucon.push(`AND accountId = ?`);
@@ -878,49 +1136,43 @@ export default class Controller {
         ucon.push(`AND lastName LIKE ?`);
         uparam.push(`${lastName}%`);
       }
+
       let citizenInfo = await req.db.query(
         `
-        SELECT 
-          C.*, 
+        SELECT
+          C.*,
           CR.username,
           CC.primaryEmail,
-          CC.primaryMobile,
-          RL.brgyId AS test,
-          AD.brgyId AS test2
-        FROM citizen_info C
+          CC.primaryMobile
+        FROM
+          citizen_info C
+        LEFT JOIN
+          citizen_contacts CC USING(accountId)
         LEFT JOIN
           citizen_credential CR
           USING(accountId)
-        LEFT JOIN 
-          citizen_contacts CC 
+        LEFT JOIN
+          citizen_verifystatus CV
           USING(accountId)
+        LEFT JOIN
+          cvms_familymembers CF 
+          USING(accountId)
+        LEFT JOIN
+          cvms_addresses CA 
+          ON CA.addressCode = CF.addressCode
         LEFT JOIN
           registration_logs RL
           USING(accountId)
-        LEFT JOIN(
-          SELECT 
-            CF.addressCode,
-            CA.brgyId,
-            CF.accountId,
-            BR.cityCode AS cityId
-          FROM 
-            cvms_familymembers CF
-          LEFT JOIN
-            cvms_addresses CA 
-            USING(addressCode)
-          LEFT JOIN
-            brgy BR
-            ON BR.brgyCode = CA.brgyId
-          WHERE
-            CF.isDeleted= 0
-          ORDER BY CF.dateCreated DESC
-        ) AD USING(accountId)
         WHERE
+          (CA.regionId = ? OR CA.regionId IS NULL) AND
+          (CA.provinceId = ? OR CA.provinceId IS NULL) AND
+          (CA.cityId = ? OR CA.cityId IS NULL) AND
+          (CA.brgyId = ? OR RL.brgyId = ?) AND 
           C.isDeleted = 0 AND
-          (RL.cityId= ? OR AD.cityId= ?)
+          (CF.isDeleted = 0 OR CF.isDeleted IS NULL)
           ${ucon.join(" ")}
       `,
-        uparam
+        [regionId, provinceId, cityId, brgyId, brgyId, uparam]
       );
       let citizenStatus = await req.db.query(
         `
@@ -992,6 +1244,147 @@ export default class Controller {
       next(err);
     }
   }
+
+  // async searchCitizen(req, res, next) {
+  //   //carlo
+  //   let { accountId, firstName, middleName, lastName } = req.body;
+  //   const { cityId } = req.currentUser;
+  //   try {
+  //     let ucon = [];
+  //     let uparam = [];
+  //     uparam.push(cityId);
+  //     uparam.push(cityId);
+
+  //     if (!global.isEmpty(accountId)) {
+  //       ucon.push(`AND accountId = ?`);
+  //       uparam.push(accountId);
+  //     }
+  //     if (!global.isEmpty(firstName)) {
+  //       ucon.push(`AND firstName LIKE ?`);
+  //       uparam.push(`${firstName}%`);
+  //     }
+  //     if (!global.isEmpty(middleName)) {
+  //       ucon.push(`AND middleName LIKE ?`);
+  //       uparam.push(`${middleName}%`);
+  //     }
+  //     if (!global.isEmpty(lastName)) {
+  //       ucon.push(`AND lastName LIKE ?`);
+  //       uparam.push(`${lastName}%`);
+  //     }
+  //     let citizenInfo = await req.db.query(
+  //       `
+  //       SELECT
+  //         C.*,
+  //         CR.username,
+  //         CC.primaryEmail,
+  //         CC.primaryMobile,
+  //         RL.brgyId AS test,
+  //         AD.brgyId AS test2
+  //       FROM citizen_info C
+  //       LEFT JOIN
+  //         citizen_credential CR
+  //         USING(accountId)
+  //       LEFT JOIN
+  //         citizen_contacts CC
+  //         USING(accountId)
+  //       LEFT JOIN
+  //         registration_logs RL
+  //         USING(accountId)
+  //       LEFT JOIN(
+  //         SELECT
+  //           CF.addressCode,
+  //           CA.brgyId,
+  //           CF.accountId,
+  //           BR.cityCode AS cityId
+  //         FROM
+  //           cvms_familymembers CF
+  //         LEFT JOIN
+  //           cvms_addresses CA
+  //           USING(addressCode)
+  //         LEFT JOIN
+  //           brgy BR
+  //           ON BR.brgyCode = CA.brgyId
+  //         WHERE
+  //           CF.isDeleted= 0
+  //         ORDER BY CF.dateCreated DESC
+  //       ) AD USING(accountId)
+  //       WHERE
+  //         C.isDeleted = 0 AND
+  //         (RL.cityId= ? OR AD.cityId= ?)
+  //         ${ucon.join(" ")}
+  //     `,
+  //       uparam
+  //     );
+  //     let citizenStatus = await req.db.query(
+  //       `
+  //         SELECT *
+  //         FROM citizen_verifystatus
+  //         WHERE
+  //           services IN ("PROFILE","CVMS")
+  //       `
+  //     );
+  //     let citizenFiles = await req.db.query(
+  //       `
+  //         SELECT *
+  //         FROM
+  //           citizen_files
+  //         WHERE
+  //           module = ? AND
+  //           isDeleted = ?
+  //       `,
+  //       ["PROFILE", 0]
+  //     );
+
+  //     let address = await req.db.query(`
+  //         SELECT
+  //           F.householdId,
+  //           F.addressCode,
+  //           F.accountId,
+  //           F.familyType,
+  //           F.familyRelation,
+  //           A.unitNo,
+  //           A.houseNo,
+  //           A.street,
+  //           A.phase,
+  //           B.brgyId,
+  //           B.brgyDesc,
+  //           B.cityDesc,
+  //           B.provinceDesc,
+  //           B.regionDesc
+  //         FROM cvms_familymembers F
+  //         LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+  //         LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+  //       `);
+  //     let sectors = await req.db.query(`
+  //         SELECT
+  //           S.accountId,
+  //           S.sectorId,
+  //           C.name,
+  //           C.requirements
+  //         FROM citizen_sectors S
+  //         LEFT JOIN cms_sectors C ON C.id = S.sectorId
+  //         WHERE
+  //           S.isDeleted = 0
+  //       `);
+  //     let result = citizenInfo.map((i) => {
+  //       let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+  //       let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+  //       let adds = address.filter((a) => a.accountId === i.accountId);
+  //       let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+  //       i.status = status[0].status;
+  //       i.files = files;
+  //       i.address = adds;
+  //       i.sectors = sect;
+  //       return i;
+  //     });
+
+  //     return res.status(200).json(result);
+  //   } catch (err) {
+  //     console.error(err);
+  //     next(err);
+  //   }
+  // }
   async searchCitizenTraceData(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
 
@@ -1174,7 +1567,7 @@ export default class Controller {
 
   async signupCitizen(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
-    let { accountId, regionId, provinceId, cityId } = req.currentUser;
+    let { accountId, regionId, provinceId, cityId, brgyId } = req.currentUser;
     let {
       firstName,
       middleName,
@@ -1185,7 +1578,6 @@ export default class Controller {
       email,
       mobileNumber,
       username,
-      brgyId,
     } = req.body;
 
     try {
@@ -1609,6 +2001,160 @@ export default class Controller {
       next(err);
     }
   }
+  // async approveApplication(req, res, next) {
+  //   let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+  //   let {
+  //     accountId: brgyUid,
+  //     module: mdl,
+  //     accountType,
+  //     section,
+  //   } = req.currentUser;
+  //   let { accountId, sector, idType } = req.body;
+  //   let files = req.files;
+  //   console.log("Request Body:", req.body);
+  //   let docsStatus;
+  //   try {
+  //     let checkDocs = await req.db.query(
+  //       `
+  //       SELECT *
+  //       FROM citizen_files
+  //       WHERE accountId = ?
+  //     `,
+  //       [accountId]
+  //     );
+  //     if (checkDocs.length > 0) {
+  //       let profileID = checkDocs.find((e) => e.type === "PROFILE_ID");
+  //       let profileDocs = checkDocs.find((e) => e.type === "PROFILE_DOCUMENT");
+  //       if (!isEmpty(sector)) {
+  //         await req.db.query(
+  //           `
+  //           UPDATE citizen_sectors
+  //           SET isDeleted = 1
+  //           WHERE
+  //             accountId = ?
+  //         `,
+  //           [accountId]
+  //         );
+  //         for (let s of sector) {
+  //           let check = await req.db.query(
+  //             `
+  //             SELECT *
+  //             FROM citizen_sectors
+  //             WHERE
+  //               accountId = ? AND
+  //               sectorId = ?
+  //           `,
+  //             [accountId, s.id]
+  //           );
+  //           if (check.length > 0) {
+  //             console.log(
+  //               `
+  //             UPDATE citizen_sectors
+  //             SET isDeleted = 0
+  //             WHERE
+  //               accountId = ? AND
+  //               sectorId = ?
+  //           `,
+  //               [accountId, s.id]
+  //             );
+  //             await req.db.query(
+  //               `
+  //               UPDATE citizen_sectors
+  //               SET isDeleted = 0
+  //               WHERE
+  //                 accountId = ? AND
+  //                 sectorId = ?
+  //             `,
+  //               [accountId, s.id]
+  //             );
+  //           } else {
+  //             await req.db.query(
+  //               `
+  //               INSERT INTO citizen_sectors
+  //               SET ?
+  //             `,
+  //               {
+  //                 accountId: accountId,
+  //                 sectorId: s.id,
+  //                 dateCreated: date,
+  //                 dateUpdated: date,
+  //               }
+  //             );
+  //             let [genUUID] = await req.db.query(`
+  //             SELECT UUID() AS uuid
+  //             `);
+  //             const { uuid } = genUUID;
+  //             let id = files.file[0].path;
+  //             console.log(id);
+  //             await req.db.query(
+  //               `
+  //                 INSERT INTO citizen_files
+  //                 SET ?
+  //               `,
+  //               {
+  //                 accountId: accountId,
+  //                 imageId: uuid,
+  //                 image: id,
+  //                 module: "PROFILE",
+  //                 type: idType,
+  //                 dateCreated: date,
+  //                 dateUpdated: date,
+  //               }
+  //             );
+  //           }
+  //         }
+  //       }
+  //       let val = {
+  //         status: "APPROVED",
+  //         isDeleted: 0,
+  //         dateUpdated: date,
+  //       };
+  //       let result = await req.db.query(
+  //         `
+  //         UPDATE citizen_verifystatus
+  //         SET ?
+  //         WHERE
+  //         accountId = ? AND
+  //         services = ?
+  //       `,
+  //         [val, accountId, "PROFILE"]
+  //       );
+
+  //       if (result.affectedRows > 0) {
+  //         let auditObj = {
+  //           createdBy: brgyUid,
+  //           accountId: accountId,
+  //           userPriviledge: `${mdl}:${accountType}:${section}`,
+  //           actionType: "UPDATE PROFILE STATUS",
+  //           crud: "UPDATE",
+  //           newValue: JSON.stringify(val),
+  //           dateCreated: date,
+  //           dateUpdated: date,
+  //         };
+
+  //         await audit.auditData(req, auditObj);
+  //         return res
+  //           .status(200)
+  //           .json({ status: "APPROVED", message: `Approved successfully.` });
+  //       } else {
+  //         return res.status(200).json({
+  //           status: "FAILED",
+  //           message: `Failed to approve application.`,
+  //         });
+  //       }
+  //     } else {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message:
+  //           "Please upload supporting documents first before approving the application of the citizen.",
+  //       });
+  //     }
+  //   } catch (err) {
+  //     console.error(err);
+  //     next(err);
+  //   }
+  // }
+
   async approveApplication(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let {
@@ -1619,7 +2165,6 @@ export default class Controller {
     } = req.currentUser;
     let { accountId, sector, idType } = req.body;
     let files = req.files;
-    console.log("Request Body:", req.body);
     let docsStatus;
     try {
       let checkDocs = await req.db.query(
@@ -1652,19 +2197,9 @@ export default class Controller {
                 accountId = ? AND
                 sectorId = ?
             `,
-              [accountId, s.id]
+              [accountId, s]
             );
             if (check.length > 0) {
-              console.log(
-                `
-              UPDATE citizen_sectors
-              SET isDeleted = 0
-              WHERE
-                accountId = ? AND
-                sectorId = ?
-            `,
-                [accountId, s.id]
-              );
               await req.db.query(
                 `
                 UPDATE citizen_sectors
@@ -1673,7 +2208,7 @@ export default class Controller {
                   accountId = ? AND
                   sectorId = ?
               `,
-                [accountId, s.id]
+                [accountId, s]
               );
             } else {
               await req.db.query(
@@ -1683,32 +2218,32 @@ export default class Controller {
               `,
                 {
                   accountId: accountId,
-                  sectorId: s.id,
+                  sectorId: s,
                   dateCreated: date,
                   dateUpdated: date,
+                  attachment: files.find((f) => f.fieldname == s).path,
                 }
               );
-              let [genUUID] = await req.db.query(`
-              SELECT UUID() AS uuid
-              `);
-              const { uuid } = genUUID;
-              let id = files.file[0].path;
-              console.log(id);
-              await req.db.query(
-                `
-                  INSERT INTO citizen_files
-                  SET ?  
-                `,
-                {
-                  accountId: accountId,
-                  imageId: uuid,
-                  image: id,
-                  module: "PROFILE",
-                  type: idType,
-                  dateCreated: date,
-                  dateUpdated: date,
-                }
-              );
+              // let [genUUID] = await req.db.query(`
+              // SELECT UUID() AS uuid
+              // `);
+              // const { uuid } = genUUID;
+              // let id = files.file ? files.file[0].path : null;
+              // await req.db.query(
+              //   `
+              //     INSERT INTO citizen_files
+              //     SET ?
+              //   `,
+              //   {
+              //     accountId: accountId,
+              //     imageId: uuid,
+              //     image: id,
+              //     module: "PROFILE",
+              //     type: idType,
+              //     dateCreated: date,
+              //     dateUpdated: date,
+              //   }
+              // );
             }
           }
         }
@@ -1792,6 +2327,249 @@ export default class Controller {
       next(err);
     }
   }
+  // async createHousehold(req, res, next) {
+  //   let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+  //   let {
+  //     accountId: brgyUid,
+  //     module: mdl,
+  //     accountType,
+  //     section,
+  //   } = req.currentUser;
+
+  //   let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
+  //     req.body;
+  //   try {
+  //     let ProfileStatus = await req.db.query(
+  //       `
+  //     SELECT *
+  //     FROM citizen_verifystatus
+  //     WHERE
+  //       accountId = ? AND
+  //       services = ? AND
+  //       isDeleted = ? AND
+  //       status = ?
+  //   `,
+  //       [accountId, "PROFILE", 0, "PENDING"]
+  //     );
+
+  //     if (ProfileStatus.length > 0) {
+  //       return res
+  //         .status(401)
+  //         .json({ error: 401, message: `Citizen is not yet verified.` });
+  //     }
+
+  //     let isExists = await req.db.query(
+  //       `
+  //       SELECT *
+  //       FROM cvms_familymembers
+  //       WHERE
+  //       accountId = ? AND
+  //       status = ?
+  //     `,
+  //       [accountId, 1]
+  //     );
+  //     if (isExists.length > 0) {
+  //       return res.status(401).json({ error: 401, message: `Already exists.` });
+  //     }
+  //     let sql;
+  //     let param;
+  //     if (isHead == 0 && isEmpty(familyHeadId)) {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message: `Maari po lamang na piliin ang inyong haligi ng tahanan upang kayo ay mapabilang sa kanyang pamilya.`,
+  //       });
+  //     } else if (isHead == 0 && !isEmpty(familyHeadId)) {
+  //       sql = `
+  //         SELECT *
+  //         FROM cvms_familymembers
+  //         WHERE
+  //         addressCode = ? AND
+  //         SUBSTR(familyType,3,3) = ? AND
+  //         accountId = ?
+  //         ORDER BY familyType DESC LIMIT 1
+  //       `;
+  //       param = [addressCode, "A", familyHeadId];
+  //     } else {
+  //       sql = `
+  //         SELECT *
+  //         FROM cvms_familymembers
+  //         WHERE
+  //         addressCode = ? AND
+  //         SUBSTR(familyType,3,3) = ?
+  //         ORDER BY familyType DESC LIMIT 1
+  //       `;
+  //       param = [addressCode, "A"];
+  //     }
+  //     let checkFamily = await req.db.query(sql, param);
+  //     if (isHead == 0 && checkFamily.length == 0) {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message: `Maari po lamang na magparehistro muna ang inyong haligi ng tahanan bago ang mga myembro neto.`,
+  //       });
+  //     }
+
+  //     let result = await req.db.query(
+  //       `
+  //       CALL household_registration(
+  //         ?, ?, ?, ?, ?,
+  //         ?, ?, ?, ?, ?
+  //       )
+  //     `,
+  //       [
+  //         brgyUid,
+  //         isHead,
+  //         accountId,
+  //         addressCode,
+  //         checkFamily.length > 0 ? checkFamily[0].familyType : "00A",
+  //         familyRelation,
+  //         JSON.stringify(req.body),
+  //         date,
+  //         date,
+  //         `${mdl}:${accountType}:${section}`,
+  //       ]
+  //     );
+  //     result = result[0];
+  //     if (result.length > 0) {
+  //       res.status(200).json({ message: `tagged.` });
+  //     } else {
+  //       res.status(500).json({ error: 500, message: `error.` });
+  //     }
+  //   } catch (err) {
+  //     console.error(err);
+  //     next(err);
+  //   }
+  // }
+  // async changeHousehold(req, res, next) {
+  //   let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+  //   let {
+  //     accountId: brgyUid,
+  //     module: mdl,
+  //     accountType,
+  //     section,
+  //   } = req.currentUser;
+
+  //   let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
+  //     req.body;
+  //   try {
+  //     let ProfileStatus = await req.db.query(
+  //       `
+  //       SELECT *
+  //       FROM citizen_verifystatus
+  //       WHERE
+  //         accountId = ? AND
+  //         services = ? AND
+  //         isDeleted = ? AND
+  //         status = ?
+  //     `,
+  //       [accountId, "PROFILE", 0, "PENDING"]
+  //     );
+
+  //     if (ProfileStatus.length > 0) {
+  //       return res
+  //         .status(401)
+  //         .json({ error: 401, message: `Citizen is not yet verified.` });
+  //     }
+  //     let isExists = await req.db.query(
+  //       `
+  //       SELECT *
+  //       FROM cvms_familymembers
+  //       WHERE
+  //       accountId = ? AND
+  //       status = ? AND
+  //       addressCode = ?
+  //     `,
+  //       [accountId, 1, addressCode]
+  //     );
+
+  //     //CARLO - PILALITAN KO 'addressCode <> ?' to 'addressCode = ?'
+  //     if (isExists.length > 0) {
+  //       return res.status(401).json({ error: 401, message: `Already exists.` });
+  //     }
+
+  //     let sql;
+  //     let param;
+  //     if (isHead == 0 && isEmpty(familyHeadId)) {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message: `Maari po lamang na piliin ang inyong haligi ng tahanan upang kayo ay mapabilang sa kanyang pamilya.`,
+  //       });
+  //     } else if (isHead == 0 && !isEmpty(familyHeadId)) {
+  //       sql = `
+  //         SELECT *
+  //         FROM cvms_familymembers
+  //         WHERE
+  //         addressCode = ? AND
+  //         SUBSTR(familyType,3,3) = ? AND
+  //         accountId = ?
+  //         ORDER BY familyType DESC LIMIT 1
+  //       `;
+  //       param = [addressCode, "A", familyHeadId];
+  //     } else {
+  //       sql = `
+  //         SELECT *
+  //         FROM cvms_familymembers
+  //         WHERE
+  //         addressCode = ? AND
+  //         SUBSTR(familyType,3,3) = ?
+  //         ORDER BY familyType DESC LIMIT 1
+  //       `;
+  //       param = [addressCode, "A"];
+  //     }
+  //     let checkFamily = await req.db.query(sql, param);
+  //     if (isHead == 0 && checkFamily.length == 0) {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message: `Maari po lamang na magparehistro muna ang inyong haligi ng tahanan bago ang mga myembro neto.`,
+  //       });
+  //     }
+  //     await req.db.query(
+  //       `
+  //       UPDATE cvms_familymembers
+  //       SET ?
+  //       WHERE
+  //         accountId = ? AND
+  //         addressCode <> ?
+  //     `,
+  //       [
+  //         {
+  //           isDeleted: 1,
+  //           dateUpdated: date,
+  //         },
+  //         accountId,
+  //         addressCode,
+  //       ]
+  //     );
+  //     let result = await req.db.query(
+  //       `
+  //       CALL household_registration(
+  //         ?, ?, ?, ?, ?,
+  //         ?, ?, ?, ?, ?
+  //       )
+  //     `,
+  //       [
+  //         brgyUid,
+  //         isHead,
+  //         accountId,
+  //         addressCode,
+  //         checkFamily.length > 0 ? checkFamily[0].familyType : "00A",
+  //         familyRelation,
+  //         JSON.stringify(req.body),
+  //         date,
+  //         date,
+  //         `${mdl}:${accountType}:${section}`,
+  //       ]
+  //     );
+  //     result = result[0];
+  //     if (result.length > 0) {
+  //       res.status(200).json({ message: `tagged.` });
+  //     } else {
+  //       res.status(500).json({ error: 500, message: `error.` });
+  //     }
+  //   } catch (err) {
+  //     next(err);
+  //   }
+  // }
+
   async createHousehold(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let {
@@ -1799,6 +2577,7 @@ export default class Controller {
       module: mdl,
       accountType,
       section,
+      brgyId,
     } = req.currentUser;
 
     let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
@@ -1873,11 +2652,30 @@ export default class Controller {
         });
       }
 
+      const checkBrgy = await req.db.query(
+        `
+        SELECT 
+          CA.brgyId,
+          CF.id
+        FROM
+          cvms_familymembers CF
+        LEFT JOIN
+          cvms_addresses CA
+          USING(addressCode)
+        WHERE
+          CF.accountId= ?
+        ORDER BY CF.id DESC LIMIT 1
+      `,
+        accountId
+      );
+
+      const status = 1;
+
       let result = await req.db.query(
         `
         CALL household_registration(
-          ?, ?, ?, ?, ?,  
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, 
+          ?, ?, ?, ?, ?, ?, ?
         )
       `,
         [
@@ -1891,11 +2689,18 @@ export default class Controller {
           date,
           date,
           `${mdl}:${accountType}:${section}`,
+          status,
+          req.file.path || "",
         ]
       );
       result = result[0];
-      if (result.length > 0) {
-        res.status(200).json({ message: `tagged.` });
+
+      if (result.length > 0 && status === 1) {
+        res.status(200).json({ message: `Address transfer approved.` });
+      } else if (result.length > 0 && status === 0) {
+        res
+          .status(200)
+          .json({ message: `Address transfer pending for approval.` });
       } else {
         res.status(500).json({ error: 500, message: `error.` });
       }
@@ -1904,6 +2709,7 @@ export default class Controller {
       next(err);
     }
   }
+
   async changeHousehold(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let {
@@ -1911,10 +2717,13 @@ export default class Controller {
       module: mdl,
       accountType,
       section,
+      brgyId,
     } = req.currentUser;
 
     let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
       req.body;
+
+    console.log(accountId);
     try {
       let ProfileStatus = await req.db.query(
         `
@@ -2004,11 +2813,31 @@ export default class Controller {
           addressCode,
         ]
       );
+
+      const checkBrgy = await req.db.query(
+        `
+        SELECT 
+          CA.brgyId,
+          CF.id
+        FROM
+          cvms_familymembers CF
+        LEFT JOIN
+          cvms_addresses CA
+          USING(addressCode)
+        WHERE
+          CF.accountId= ?
+        ORDER BY CF.id DESC LIMIT 1
+      `,
+        accountId
+      );
+
+      const status = 1;
+
       let result = await req.db.query(
         `
         CALL household_registration(
           ?, ?, ?, ?, ?,  
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?, ?
         )
       `,
         [
@@ -2022,21 +2851,28 @@ export default class Controller {
           date,
           date,
           `${mdl}:${accountType}:${section}`,
+          status,
+          req.file.path || "",
         ]
       );
       result = result[0];
-      if (result.length > 0) {
-        res.status(200).json({ message: `tagged.` });
+      if (result.length > 0 && status === 1) {
+        res.status(200).json({ message: `Address transfer approved.` });
+      } else if (result.length > 0 && status === 0) {
+        res
+          .status(200)
+          .json({ message: `Address transfer pending for approval.` });
       } else {
         res.status(500).json({ error: 500, message: `error.` });
       }
     } catch (err) {
+      console.error(err);
       next(err);
     }
   }
 
   async getVerifiedCitizens(req, res, next) {
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
     try {
       let citizenInfo = await req.db.query(
         `
@@ -2078,10 +2914,10 @@ export default class Controller {
         ) AD USING(accountId)
         WHERE
           CV.status= "APPROVED" AND 
-          (RL.cityId= ? OR AD.cityId= ?) AND
+          (RL.brgyId = ? OR AD.brgyId = ?) AND
           C.isDeleted = 0
       `,
-        [cityId, cityId]
+        [brgyId, brgyId]
       );
       let citizenStatus = await req.db.query(
         `
@@ -2155,7 +2991,7 @@ export default class Controller {
   }
 
   async getUnverifiedCitizens(req, res, next) {
-    const { cityId } = req.currentUser;
+    const { brgyId } = req.currentUser;
     try {
       let citizenInfo = await req.db.query(
         `
@@ -2179,10 +3015,10 @@ export default class Controller {
           USING(accountId)
         WHERE
           CV.status= "PENDING" AND
-          RL.cityId = ? AND
+          RL.brgyId = ? AND
           C.isDeleted = 0
       `,
-        [cityId]
+        [brgyId]
       );
       let citizenStatus = await req.db.query(
         `
@@ -2235,6 +3071,7 @@ export default class Controller {
         WHERE
           S.isDeleted = 0
       `);
+
       let result = citizenInfo.map((i) => {
         let status = citizenStatus.filter((s) => s.accountId === i.accountId);
         let files = citizenFiles.filter((f) => f.accountId === i.accountId);
@@ -2249,6 +3086,66 @@ export default class Controller {
       });
 
       return res.status(200).json(result);
+    } catch (err) {
+      console.error(err);
+      next(err);
+    }
+  }
+
+  async getTransferredCitizens(req, res, next) {
+    let { brgyId } = req.currentUser;
+    console.log(brgyId);
+    try {
+      const citizenAddresses = await req.db.query(
+        `
+        SELECT CI.*,
+          CF.transferredTo,
+          CF.status,
+          CF.householdId
+        FROM
+          cvms_familymembers CF
+        LEFT JOIN
+          cvms_addresses CA
+          USING(addressCode)
+        LEFT JOIN citizen_info CI
+          USING(accountId)
+        WHERE
+          CA.brgyId = ? AND
+          CF.transferredTo IS NOT NULL
+        ORDER BY dateUpdated DESC
+
+      `,
+        [brgyId]
+      );
+
+      console.log(citizenAddresses);
+      for (const citizen of citizenAddresses) {
+        const newAddress = await req.db.query(
+          `
+          SELECT CA.*,
+            CF.status,
+            CF.accountId,
+            CF.householdId,
+            CF.attachment,
+            CF.dateCreated,
+            CF.dateUpdated
+          FROM
+            cvms_familymembers CF
+          LEFT JOIN
+            cvms_addresses CA
+            USING(addressCode)
+          WHERE CF.householdId = ?
+        `,
+          citizen.transferredTo
+        );
+
+        citizen.newAddress = newAddress[0];
+      }
+      citizenAddresses.sort(
+        (a, b) => a.newAddress.status - b.newAddress.status
+      );
+
+      return res.status(200).json(citizenAddresses);
     } catch (err) {
       console.error(err);
       next(err);

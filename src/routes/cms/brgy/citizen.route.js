@@ -39,12 +39,24 @@ router.get("/getAddresses", controller.getAddresses);
 router.get("/getPhases", controller.getPhases);
 router.get("/getStreets/:phase", controller.getStreets);
 router.post("/searchAddress", sanitizer, controller.searchAddress);
-router.post("/searchPhaseAndStreet", sanitizer, controller.searchPhaseAndStreet);
+router.post(
+  "/searchPhaseAndStreet",
+  sanitizer,
+  controller.searchPhaseAndStreet
+);
 router.post("/createNewAddress", sanitizer, controller.createNewAddress);
 router.get("/getPhaseAndStreet", controller.getPhaseAndStreet);
-router.post("/createPhaseAndStreet", sanitizer, controller.createPhaseAndStreet);
+router.post(
+  "/createPhaseAndStreet",
+  sanitizer,
+  controller.createPhaseAndStreet
+);
 router.post("/updateAddresses/:id", sanitizer, controller.updateAddresses);
-router.post("/updatePhaseAndStreet/:id", sanitizer, controller.updatePhaseAndStreet);
+router.post(
+  "/updatePhaseAndStreet/:id",
+  sanitizer,
+  controller.updatePhaseAndStreet
+);
 
 // router.get("/getCitizensList", controller.getCitizensList);
 router.post("/searchAllCitizen", controller.searchAllCitizen);
@@ -98,17 +110,21 @@ router.post(
   controller.uploadSupportingFiles
 );
 
-router.post(
-  "/approveApplication",
-  upload.fields([
-    { name: "file", maxCount: 1 },
-  ]),
-  controller.approveApplication
-);
+router.post("/approveApplication", upload.any(), controller.approveApplication);
 
 router.post("/searchHouseholdMembers", controller.searchHouseholdMembers);
-router.post("/createHousehold", sanitizer, controller.createHousehold);
-router.post("/changeHousehold", sanitizer, controller.changeHousehold);
+router.post(
+  "/createHousehold",
+  upload.single("attachment"),
+  sanitizer,
+  controller.createHousehold
+);
+router.post(
+  "/changeHousehold",
+  upload.single("attachment"),
+  sanitizer,
+  controller.changeHousehold
+);
 
 router.post(
   "/searchTraceCitizen",
@@ -148,5 +164,6 @@ router.post(
 
 router.get("/getVerifiedCitizens", controller.getVerifiedCitizens);
 router.get("/getUnverifiedCitizens", controller.getUnverifiedCitizens);
+router.get("/getTransferredCitizens", controller.getTransferredCitizens);
 
 export default router;

@@ -262,14 +262,13 @@ export default class Controller {
     }
   }
   async searchAddress(req, res, next) {
-    //carlo
     let { unitNo, houseNo, street, phase } = req.body;
-    const { brgyId } = req.currentUser;
+    const { cityId } = req.currentUser;
     try {
       let qry = [];
       let param = [];
-      qry.push(`AND A.brgyId = ?`);
-      param.push(brgyId);
+      qry.push(`AND A.cityId = ?`);
+      param.push(cityId);
       if (!global.isEmpty(unitNo)) {
         qry.push(`AND A.unitNo LIKE ?`);
         param.push(`${unitNo}`);
@@ -461,31 +460,175 @@ export default class Controller {
   async searchCitizen(req, res, next) {
     //carlo
     let { accountId, firstName, middleName, lastName } = req.body;
-    const { cityId } = req.currentUser;
-    try {
-      let ucon = [];
-      let uparam = [];
-      uparam.push(cityId);
-      uparam.push(cityId);
+    const { cityId, brgyId, accountType, type } = req.currentUser;
 
-      if (!global.isEmpty(accountId)) {
-        ucon.push(`AND accountId = ?`);
-        uparam.push(accountId);
-      }
-      if (!global.isEmpty(firstName)) {
-        ucon.push(`AND firstName LIKE ?`);
-        uparam.push(`${firstName}%`);
-      }
-      if (!global.isEmpty(middleName)) {
-        ucon.push(`AND middleName LIKE ?`);
-        uparam.push(`${middleName}%`);
-      }
-      if (!global.isEmpty(lastName)) {
-        ucon.push(`AND lastName LIKE ?`);
-        uparam.push(`${lastName}%`);
-      }
-      let citizenInfo = await req.db.query(
+    if (accountType === "department") {
+      if (type === 4) {
+        try {
+          let ucon = [];
+          let uparam = [];
+          uparam.push(cityId);
+          uparam.push(cityId);
+
+          if (!global.isEmpty(accountId)) {
+            ucon.push(`AND accountId = ?`);
+            uparam.push(accountId);
+          }
+          if (!global.isEmpty(firstName)) {
+            ucon.push(`AND firstName LIKE ?`);
+            uparam.push(`${firstName}%`);
+          }
+          if (!global.isEmpty(middleName)) {
+            ucon.push(`AND middleName LIKE ?`);
+            uparam.push(`${middleName}%`);
+          }
+          if (!global.isEmpty(lastName)) {
+            ucon.push(`AND lastName LIKE ?`);
+            uparam.push(`${lastName}%`);
+          }
+          let citizenInfo = await req.db.query(
+            `
+          SELECT 
+            C.*,
+            CR.username,
+            CC.primaryEmail,
+            CC.primaryMobile
+          FROM 
+            citizen_info C
+          LEFT JOIN 
+            citizen_contacts CC USING(accountId)
+          LEFT JOIN
+            citizen_credential CR
+            USING(accountId)
+          LEFT JOIN
+            citizen_verifystatus CV
+            USING(accountId)
+          LEFT JOIN
+            registration_logs RL
+            USING(accountId)
+          LEFT JOIN(
+            SELECT 
+              CF.addressCode,
+              CA.brgyId,
+              CF.accountId,
+              BR.cityCode AS cityId
+            FROM 
+              cvms_familymembers CF
+            LEFT JOIN
+              cvms_addresses CA 
+              USING(addressCode)
+            LEFT JOIN
+              brgy BR
+              ON BR.brgyCode = CA.brgyId
+            WHERE
+              CF.isDeleted= 0
+            ORDER BY CF.dateCreated DESC
+          ) AD USING(accountId)
+          WHERE
+            C.isDeleted = 0 AND
+            (RL.cityId= ? OR AD.cityId= ?)
+            ${ucon.join(" ")} AND
+            C.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)
+        `,
+            uparam
+          );
+          let citizenStatus = await req.db.query(
+            `
+          SELECT *
+          FROM citizen_verifystatus
+          WHERE 
+            services IN ("PROFILE","CVMS")
         `
+          );
+          let citizenFiles = await req.db.query(
+            `
+          SELECT *
+          FROM 
+            citizen_files
+          WHERE
+            module = ? AND 
+            isDeleted = ?
+        `,
+            ["PROFILE", 0]
+          );
+
+          let address = await req.db.query(`
+          SELECT 
+            F.householdId,
+            F.addressCode,
+            F.accountId,
+            F.familyType,
+            F.familyRelation,
+            A.unitNo,
+            A.houseNo,
+            A.street,
+            A.phase,
+            B.brgyId,
+            B.brgyDesc,
+            B.cityDesc,
+            B.provinceDesc,
+            B.regionDesc
+          FROM cvms_familymembers F
+          LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+          LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+        `);
+          let sectors = await req.db.query(`
+          SELECT
+            S.accountId,
+            S.sectorId,
+            C.name,
+            C.requirements
+          FROM citizen_sectors S
+          LEFT JOIN cms_sectors C ON C.id = S.sectorId
+          WHERE
+            S.isDeleted = 0
+        `);
+          let result = citizenInfo.map((i) => {
+            let status = citizenStatus.filter(
+              (s) => s.accountId === i.accountId
+            );
+            let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+            let adds = address.filter((a) => a.accountId === i.accountId);
+            let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+            i.status = status[0].status;
+            i.files = files;
+            i.address = adds;
+            i.sectors = sect;
+            return i;
+          });
+
+          return res.status(200).json(result);
+        } catch (err) {
+          console.error(err);
+          next(err);
+        }
+      }
+    } else {
+      try {
+        let ucon = [];
+        let uparam = [];
+        uparam.push(cityId);
+        uparam.push(cityId);
+
+        if (!global.isEmpty(accountId)) {
+          ucon.push(`AND accountId = ?`);
+          uparam.push(accountId);
+        }
+        if (!global.isEmpty(firstName)) {
+          ucon.push(`AND firstName LIKE ?`);
+          uparam.push(`${firstName}%`);
+        }
+        if (!global.isEmpty(middleName)) {
+          ucon.push(`AND middleName LIKE ?`);
+          uparam.push(`${middleName}%`);
+        }
+        if (!global.isEmpty(lastName)) {
+          ucon.push(`AND lastName LIKE ?`);
+          uparam.push(`${lastName}%`);
+        }
+        let citizenInfo = await req.db.query(
+          `
           SELECT 
             C.*,
             CR.username,
@@ -527,18 +670,18 @@ export default class Controller {
             (RL.cityId= ? OR AD.cityId= ?)
             ${ucon.join(" ")}
         `,
-        uparam
-      );
-      let citizenStatus = await req.db.query(
-        `
+          uparam
+        );
+        let citizenStatus = await req.db.query(
+          `
           SELECT *
           FROM citizen_verifystatus
           WHERE 
             services IN ("PROFILE","CVMS")
         `
-      );
-      let citizenFiles = await req.db.query(
-        `
+        );
+        let citizenFiles = await req.db.query(
+          `
           SELECT *
           FROM 
             citizen_files
@@ -546,10 +689,10 @@ export default class Controller {
             module = ? AND 
             isDeleted = ?
         `,
-        ["PROFILE", 0]
-      );
+          ["PROFILE", 0]
+        );
 
-      let address = await req.db.query(`
+        let address = await req.db.query(`
           SELECT 
             F.householdId,
             F.addressCode,
@@ -569,7 +712,7 @@ export default class Controller {
           LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
           LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
         `);
-      let sectors = await req.db.query(`
+        let sectors = await req.db.query(`
           SELECT
             S.accountId,
             S.sectorId,
@@ -580,23 +723,24 @@ export default class Controller {
           WHERE
             S.isDeleted = 0
         `);
-      let result = citizenInfo.map((i) => {
-        let status = citizenStatus.filter((s) => s.accountId === i.accountId);
-        let files = citizenFiles.filter((f) => f.accountId === i.accountId);
-        let adds = address.filter((a) => a.accountId === i.accountId);
-        let sect = sectors.filter((s) => s.accountId === i.accountId);
+        let result = citizenInfo.map((i) => {
+          let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+          let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+          let adds = address.filter((a) => a.accountId === i.accountId);
+          let sect = sectors.filter((s) => s.accountId === i.accountId);
 
-        i.status = status[0].status;
-        i.files = files;
-        i.address = adds;
-        i.sectors = sect;
-        return i;
-      });
+          i.status = status[0].status;
+          i.files = files;
+          i.address = adds;
+          i.sectors = sect;
+          return i;
+        });
 
-      return res.status(200).json(result);
-    } catch (err) {
-      console.error(err);
-      next(err);
+        return res.status(200).json(result);
+      } catch (err) {
+        console.error(err);
+        next(err);
+      }
     }
   }
   async searchCitizenTraceData(req, res, next) {
@@ -669,6 +813,296 @@ export default class Controller {
         return res.status(400).json({ error: 400, message: msg.trim() });
       }
       next(err);
+    }
+  }
+  async searchAllCitizen(req, res, next) {
+    //carlo
+    let { accountId, firstName, middleName, lastName } = req.body;
+    const { accountType, module, brgyId, cityId, type } = req.currentUser;
+
+    if (accountType === "department") {
+      if (type === 4) {
+        try {
+          let ucon = [];
+          let uparam = [];
+
+          if (!global.isEmpty(accountId)) {
+            ucon.push(`AND accountId = ?`);
+            uparam.push(accountId);
+          }
+          if (!global.isEmpty(firstName)) {
+            ucon.push(`AND firstName LIKE ?`);
+            uparam.push(`${firstName}%`);
+          }
+          if (!global.isEmpty(middleName)) {
+            ucon.push(`AND middleName LIKE ?`);
+            uparam.push(`${middleName}%`);
+          }
+          if (!global.isEmpty(lastName)) {
+            ucon.push(`AND lastName LIKE ?`);
+            uparam.push(`${lastName}%`);
+          }
+          let citizenInfo = await req.db.query(
+            `
+            SELECT
+              C.*,
+              CR.username,
+              CC.primaryEmail,
+              CC.primaryMobile
+            FROM citizen_info C
+            LEFT JOIN
+              citizen_credential CR
+              USING(accountId)
+            LEFT JOIN
+              citizen_contacts CC
+              USING(accountId)
+            LEFT JOIN
+              registration_logs RL
+              USING(accountId)
+            LEFT JOIN(
+              SELECT 
+                CF.addressCode,
+                CA.brgyId,
+                CF.accountId,
+                BR.cityCode AS cityId
+              FROM 
+                cvms_familymembers CF
+              LEFT JOIN
+                cvms_addresses CA 
+                USING(addressCode)
+              LEFT JOIN
+                brgy BR
+                ON BR.brgyCode = CA.brgyId
+              WHERE
+                CF.isDeleted= 0
+              ORDER BY CF.dateCreated DESC
+            ) AD USING(accountId)
+            WHERE
+              C.isDeleted = 0 AND
+              (RL.cityId= ? OR AD.cityId= ?)
+              ${ucon.join(" ")} AND
+              C.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)
+          `,
+            [cityId, cityId, uparam]
+          );
+          let citizenStatus = await req.db.query(
+            `
+            SELECT *
+            FROM citizen_verifystatus
+            WHERE
+              services IN ("PROFILE","CVMS")
+          `
+          );
+          let citizenFiles = await req.db.query(
+            `
+            SELECT *
+            FROM
+              citizen_files
+            WHERE
+              module = ? AND
+              isDeleted = ?
+          `,
+            ["PROFILE", 0]
+          );
+
+          let address = await req.db.query(`
+            SELECT
+              F.householdId,
+              F.addressCode,
+              F.accountId,
+              F.familyType,
+              F.familyRelation,
+              A.unitNo,
+              A.houseNo,
+              A.street,
+              A.phase,
+              B.brgyId,
+              B.brgyDesc,
+              B.cityDesc,
+              B.provinceDesc,
+              B.regionDesc,
+              F.verifiedBy,
+              F.dateCreated,
+              BU.module AS vModule,
+              BU.firstName AS vFirstName,
+              BU.lastName AS vLastName,
+              BU.contactNumber AS vContactNumber
+            FROM cvms_familymembers F
+            LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+            LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+            LEFT JOIN brgy_users BU ON BU.accountId = F.verifiedBy
+          `);
+          let sectors = await req.db.query(`
+            SELECT
+              S.accountId,
+              S.sectorId,
+              C.name,
+              C.requirements
+            FROM citizen_sectors S
+            LEFT JOIN cms_sectors C ON C.id = S.sectorId
+            WHERE
+              S.isDeleted = 0
+          `);
+          let result = citizenInfo.map((i) => {
+            let status = citizenStatus.filter(
+              (s) => s.accountId === i.accountId
+            );
+            let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+            let adds = address.filter((a) => a.accountId === i.accountId);
+            let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+            i.status = status[0].status;
+            i.files = files;
+            i.address = adds;
+            i.sectors = sect;
+            return i;
+          });
+
+          return res.status(200).json(result);
+        } catch (err) {
+          console.error(err);
+          next(err);
+        }
+      }
+    } else {
+      try {
+        let ucon = [];
+        let uparam = [];
+
+        if (!global.isEmpty(accountId)) {
+          ucon.push(`AND accountId = ?`);
+          uparam.push(accountId);
+        }
+        if (!global.isEmpty(firstName)) {
+          ucon.push(`AND firstName LIKE ?`);
+          uparam.push(`${firstName}%`);
+        }
+        if (!global.isEmpty(middleName)) {
+          ucon.push(`AND middleName LIKE ?`);
+          uparam.push(`${middleName}%`);
+        }
+        if (!global.isEmpty(lastName)) {
+          ucon.push(`AND lastName LIKE ?`);
+          uparam.push(`${lastName}%`);
+        }
+        let citizenInfo = await req.db.query(
+          `
+          SELECT
+            C.*,
+            CR.username,
+            CC.primaryEmail,
+            CC.primaryMobile
+          FROM citizen_info C
+          LEFT JOIN
+            citizen_credential CR
+            USING(accountId)
+          LEFT JOIN
+            citizen_contacts CC
+            USING(accountId)
+          LEFT JOIN
+            registration_logs RL
+            USING(accountId)
+          LEFT JOIN(
+            SELECT 
+              CF.addressCode,
+              CA.brgyId,
+              CF.accountId,
+              BR.cityCode AS cityId
+            FROM 
+              cvms_familymembers CF
+            LEFT JOIN
+              cvms_addresses CA 
+              USING(addressCode)
+            LEFT JOIN
+              brgy BR
+              ON BR.brgyCode = CA.brgyId
+            WHERE
+              CF.isDeleted= 0
+            ORDER BY CF.dateCreated DESC
+          ) AD USING(accountId)
+          WHERE
+            C.isDeleted = 0 AND
+            (RL.cityId= ? OR AD.cityId= ?)
+            ${ucon.join(" ")}
+        `,
+          [cityId, uparam]
+        );
+        let citizenStatus = await req.db.query(
+          `
+          SELECT *
+          FROM citizen_verifystatus
+          WHERE
+            services IN ("PROFILE","CVMS")
+        `
+        );
+        let citizenFiles = await req.db.query(
+          `
+          SELECT *
+          FROM
+            citizen_files
+          WHERE
+            module = ? AND
+            isDeleted = ?
+        `,
+          ["PROFILE", 0]
+        );
+
+        let address = await req.db.query(`
+          SELECT
+            F.householdId,
+            F.addressCode,
+            F.accountId,
+            F.familyType,
+            F.familyRelation,
+            A.unitNo,
+            A.houseNo,
+            A.street,
+            A.phase,
+            B.brgyId,
+            B.brgyDesc,
+            B.cityDesc,
+            B.provinceDesc,
+            B.regionDesc,
+            F.verifiedBy,
+            F.dateCreated,
+            BU.module AS vModule,
+            BU.firstName AS vFirstName,
+            BU.lastName AS vLastName,
+            BU.contactNumber AS vContactNumber
+          FROM cvms_familymembers F
+          LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+          LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+          LEFT JOIN brgy_users BU ON BU.accountId = F.verifiedBy
+        `);
+        let sectors = await req.db.query(`
+          SELECT
+            S.accountId,
+            S.sectorId,
+            C.name,
+            C.requirements
+          FROM citizen_sectors S
+          LEFT JOIN cms_sectors C ON C.id = S.sectorId
+          WHERE
+            S.isDeleted = 0
+        `);
+        let result = citizenInfo.map((i) => {
+          let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+          let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+          let adds = address.filter((a) => a.accountId === i.accountId);
+          let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+          i.status = status[0].status;
+          i.files = files;
+          i.address = adds;
+          i.sectors = sect;
+          return i;
+        });
+
+        return res.status(200).json(result);
+      } catch (err) {
+        console.error(err);
+        next(err);
+      }
     }
   }
   async signupvaliditor(req, res, next) {
@@ -1610,10 +2044,131 @@ export default class Controller {
   }
 
   async getVerifiedCitizens(req, res, next) {
-    const { cityId } = req.currentUser;
-    try {
-      let citizenInfo = await req.db.query(
-        `
+    const { cityId, accountType, type } = req.currentUser;
+    if (accountType === "department") {
+      if (type === 4) {
+        try {
+          let citizenInfo = await req.db.query(
+            `
+            SELECT
+              C.*,
+              CR.username,
+              CC.primaryEmail,
+              CC.primaryMobile
+            FROM
+              citizen_info C
+            LEFT JOIN
+              citizen_contacts CC USING(accountId)
+            LEFT JOIN
+              citizen_credential CR
+              USING(accountId)
+            LEFT JOIN
+              citizen_verifystatus CV
+              USING(accountId) 
+            LEFT JOIN
+              registration_logs RL
+              USING(accountId)
+            LEFT JOIN(
+              SELECT 
+                CF.addressCode,
+                CA.brgyId,
+                CF.accountId,
+                BR.cityCode AS cityId
+              FROM 
+                cvms_familymembers CF
+              LEFT JOIN
+                cvms_addresses CA 
+                USING(addressCode)
+              LEFT JOIN
+                brgy BR
+                ON BR.brgyCode = CA.brgyId
+              LIMIT 1
+            ) AD USING(accountId)
+            WHERE
+              CV.status= "APPROVED" AND 
+              (RL.cityId= ? OR AD.cityId= ?) AND
+              C.isDeleted = 0 AND
+              C.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)
+  
+          `,
+            [cityId, cityId]
+          );
+          let citizenStatus = await req.db.query(
+            `
+            SELECT *
+            FROM citizen_verifystatus
+            WHERE
+              services IN ("PROFILE","CVMS")
+          `
+          );
+          let citizenFiles = await req.db.query(
+            `
+            SELECT *
+            FROM
+              citizen_files
+            WHERE
+              module = ? AND
+              isDeleted = ?
+          `,
+            ["PROFILE", 0]
+          );
+
+          let address = await req.db.query(`
+            SELECT
+              F.householdId,
+              F.addressCode,
+              F.accountId,
+              F.familyType,
+              F.familyRelation,
+              A.unitNo,
+              A.houseNo,
+              A.street,
+              A.phase,
+              B.brgyId,
+              B.brgyDesc,
+              B.cityDesc,
+              B.provinceDesc,
+              B.regionDesc
+            FROM cvms_familymembers F
+            LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+            LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+          `);
+          let sectors = await req.db.query(`
+            SELECT
+              S.accountId,
+              S.sectorId,
+              C.name,
+              C.requirements
+            FROM citizen_sectors S
+            LEFT JOIN cms_sectors C ON C.id = S.sectorId
+            WHERE
+              S.isDeleted = 0
+          `);
+          let result = citizenInfo.map((i) => {
+            let status = citizenStatus.filter(
+              (s) => s.accountId === i.accountId
+            );
+            let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+            let adds = address.filter((a) => a.accountId === i.accountId);
+            let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+            i.status = status[0].status;
+            i.files = files;
+            i.address = adds;
+            i.sectors = sect;
+            return i;
+          });
+
+          return res.status(200).json(result);
+        } catch (err) {
+          console.error(err);
+          next(err);
+        }
+      }
+    } else {
+      try {
+        let citizenInfo = await req.db.query(
+          `
         SELECT
           C.*,
           CR.username,
@@ -1654,18 +2209,18 @@ export default class Controller {
           (RL.cityId= ? OR AD.cityId= ?) AND
           C.isDeleted = 0
       `,
-        [cityId, cityId]
-      );
-      let citizenStatus = await req.db.query(
-        `
+          [cityId, cityId]
+        );
+        let citizenStatus = await req.db.query(
+          `
         SELECT *
         FROM citizen_verifystatus
         WHERE
           services IN ("PROFILE","CVMS")
       `
-      );
-      let citizenFiles = await req.db.query(
-        `
+        );
+        let citizenFiles = await req.db.query(
+          `
         SELECT *
         FROM
           citizen_files
@@ -1673,10 +2228,10 @@ export default class Controller {
           module = ? AND
           isDeleted = ?
       `,
-        ["PROFILE", 0]
-      );
+          ["PROFILE", 0]
+        );
 
-      let address = await req.db.query(`
+        let address = await req.db.query(`
         SELECT
           F.householdId,
           F.addressCode,
@@ -1696,7 +2251,7 @@ export default class Controller {
         LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
         LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
       `);
-      let sectors = await req.db.query(`
+        let sectors = await req.db.query(`
         SELECT
           S.accountId,
           S.sectorId,
@@ -1707,31 +2262,153 @@ export default class Controller {
         WHERE
           S.isDeleted = 0
       `);
-      let result = citizenInfo.map((i) => {
-        let status = citizenStatus.filter((s) => s.accountId === i.accountId);
-        let files = citizenFiles.filter((f) => f.accountId === i.accountId);
-        let adds = address.filter((a) => a.accountId === i.accountId);
-        let sect = sectors.filter((s) => s.accountId === i.accountId);
+        let result = citizenInfo.map((i) => {
+          let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+          let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+          let adds = address.filter((a) => a.accountId === i.accountId);
+          let sect = sectors.filter((s) => s.accountId === i.accountId);
 
-        i.status = status[0].status;
-        i.files = files;
-        i.address = adds;
-        i.sectors = sect;
-        return i;
-      });
+          i.status = status[0].status;
+          i.files = files;
+          i.address = adds;
+          i.sectors = sect;
+          return i;
+        });
 
-      return res.status(200).json(result);
-    } catch (err) {
-      console.error(err);
-      next(err);
+        return res.status(200).json(result);
+      } catch (err) {
+        console.error(err);
+        next(err);
+      }
     }
   }
 
   async getUnverifiedCitizens(req, res, next) {
-    const { cityId } = req.currentUser;
-    try {
-      let citizenInfo = await req.db.query(
+    const { cityId, accountType, type } = req.currentUser;
+
+    if (accountType === "department") {
+      if (type === 4) {
+        try {
+          let citizenInfo = await req.db.query(
+            `
+          SELECT
+            C.*,
+            CR.username,
+            CC.primaryEmail,
+            CC.primaryMobile
+          FROM
+            citizen_info C
+          LEFT JOIN
+            citizen_contacts CC USING(accountId)
+          LEFT JOIN
+            citizen_credential CR
+            USING(accountId)
+          LEFT JOIN
+            citizen_verifystatus CV
+            USING(accountId) 
+          LEFT JOIN
+            registration_logs RL
+            USING(accountId)
+          LEFT JOIN(
+            SELECT 
+              CF.addressCode,
+              CA.brgyId,
+              CF.accountId,
+              BR.cityCode AS cityId
+            FROM 
+              cvms_familymembers CF
+            LEFT JOIN
+              cvms_addresses CA 
+              USING(addressCode)
+            LEFT JOIN
+              brgy BR
+              ON BR.brgyCode = CA.brgyId
+            LIMIT 1
+          ) AD USING(accountId)
+          WHERE
+            CV.status= "PENDING" AND
+            (RL.cityId= ? OR AD.cityId= ?) AND
+            C.isDeleted = 0 AND
+            C.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)
+        `,
+            [cityId, cityId]
+          );
+          let citizenStatus = await req.db.query(
+            `
+          SELECT *
+          FROM citizen_verifystatus
+          WHERE
+            services IN ("PROFILE","CVMS")
         `
+          );
+          let citizenFiles = await req.db.query(
+            `
+          SELECT *
+          FROM
+            citizen_files
+          WHERE
+            module = ? AND
+            isDeleted = ?
+        `,
+            ["PROFILE", 0]
+          );
+
+          let address = await req.db.query(`
+          SELECT
+            F.householdId,
+            F.addressCode,
+            F.accountId,
+            F.familyType,
+            F.familyRelation,
+            A.unitNo,
+            A.houseNo,
+            A.street,
+            A.phase,
+            B.brgyId,
+            B.brgyDesc,
+            B.cityDesc,
+            B.provinceDesc,
+            B.regionDesc
+          FROM cvms_familymembers F
+          LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+          LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+        `);
+          let sectors = await req.db.query(`
+          SELECT
+            S.accountId,
+            S.sectorId,
+            C.name,
+            C.requirements
+          FROM citizen_sectors S
+          LEFT JOIN cms_sectors C ON C.id = S.sectorId
+          WHERE
+            S.isDeleted = 0
+        `);
+          let result = citizenInfo.map((i) => {
+            let status = citizenStatus.filter(
+              (s) => s.accountId === i.accountId
+            );
+            let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+            let adds = address.filter((a) => a.accountId === i.accountId);
+            let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+            i.status = status[0].status;
+            i.files = files;
+            i.address = adds;
+            i.sectors = sect;
+            return i;
+          });
+
+          return res.status(200).json(result);
+        } catch (err) {
+          console.error(err);
+          next(err);
+        }
+      }
+    } else {
+      try {
+        let citizenInfo = await req.db.query(
+          `
         SELECT
           C.*,
           CR.username,
@@ -1750,23 +2427,39 @@ export default class Controller {
         LEFT JOIN
           registration_logs RL
           USING(accountId)
+        LEFT JOIN(
+          SELECT 
+            CF.addressCode,
+            CA.brgyId,
+            CF.accountId,
+            BR.cityCode AS cityId
+          FROM 
+            cvms_familymembers CF
+          LEFT JOIN
+            cvms_addresses CA 
+            USING(addressCode)
+          LEFT JOIN
+            brgy BR
+            ON BR.brgyCode = CA.brgyId
+          LIMIT 1
+        ) AD USING(accountId)
         WHERE
           CV.status= "PENDING" AND
-          RL.cityId= ? AND
+          (RL.cityId= ? OR AD.cityId= ?) AND
           C.isDeleted = 0
       `,
-        [cityId]
-      );
-      let citizenStatus = await req.db.query(
-        `
+          [cityId, cityId]
+        );
+        let citizenStatus = await req.db.query(
+          `
         SELECT *
         FROM citizen_verifystatus
         WHERE
           services IN ("PROFILE","CVMS")
       `
-      );
-      let citizenFiles = await req.db.query(
-        `
+        );
+        let citizenFiles = await req.db.query(
+          `
         SELECT *
         FROM
           citizen_files
@@ -1774,10 +2467,10 @@ export default class Controller {
           module = ? AND
           isDeleted = ?
       `,
-        ["PROFILE", 0]
-      );
+          ["PROFILE", 0]
+        );
 
-      let address = await req.db.query(`
+        let address = await req.db.query(`
         SELECT
           F.householdId,
           F.addressCode,
@@ -1797,7 +2490,7 @@ export default class Controller {
         LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
         LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
       `);
-      let sectors = await req.db.query(`
+        let sectors = await req.db.query(`
         SELECT
           S.accountId,
           S.sectorId,
@@ -1808,22 +2501,227 @@ export default class Controller {
         WHERE
           S.isDeleted = 0
       `);
-      let result = citizenInfo.map((i) => {
-        let status = citizenStatus.filter((s) => s.accountId === i.accountId);
-        let files = citizenFiles.filter((f) => f.accountId === i.accountId);
-        let adds = address.filter((a) => a.accountId === i.accountId);
-        let sect = sectors.filter((s) => s.accountId === i.accountId);
+        let result = citizenInfo.map((i) => {
+          let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+          let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+          let adds = address.filter((a) => a.accountId === i.accountId);
+          let sect = sectors.filter((s) => s.accountId === i.accountId);
 
-        i.status = status[0].status;
-        i.files = files;
-        i.address = adds;
-        i.sectors = sect;
-        return i;
-      });
+          i.status = status[0].status;
+          i.files = files;
+          i.address = adds;
+          i.sectors = sect;
+          return i;
+        });
 
+        return res.status(200).json(result);
+      } catch (err) {
+        console.error(err);
+        next(err);
+      }
+    }
+  }
+
+  async searchPhaseAndStreet(req, res, next) {
+    let { street, phase, brgyDesc } = req.body;
+    const { cityId } = req.currentUser;
+
+    try {
+      let qry = [];
+      let param = [];
+      qry.push(`AND B.cityId = ?`);
+      param.push(cityId);
+      if (!global.isEmpty(brgyDesc)) {
+        qry.push(`AND brgyDesc LIKE ?`);
+        param.push(`${brgyDesc}%`);
+      }
+      if (!global.isEmpty(street)) {
+        qry.push(`AND street LIKE ?`);
+        param.push(`${street}%`);
+      }
+      if (!global.isEmpty(phase)) {
+        qry.push(`AND phase LIKE ?`);
+        param.push(`${phase}%`);
+      }
+
+      let phaseAndStreet = await req.db.query(
+        `
+          SELECT
+            P.id,
+            P.brgyId,
+            P.street,
+            P.phase, 
+            P.brgyDesc
+          FROM brgy_phase_street P
+          LEFT JOIN cvms_brgy B ON B.brgyId = P.brgyId
+          WHERE
+            isDeleted = 0
+            ${qry.join(" ")}
+        `,
+        param
+      );
+
+      if (phaseAndStreet.length === 0) {
+        return res.status(200).json(phaseAndStreet);
+      }
+
+      res.status(200).json(phaseAndStreet);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getPhaseAndStreet(req, res, next) {
+    const { brgyId } = req.params;
+    try {
+      let result = await req.db.query(
+        `
+        SELECT * 
+        FROM brgy_phase_street
+        WHERE 
+          isDeleted = 0 AND
+          brgyId = ?
+      `,
+        brgyId
+      );
       return res.status(200).json(result);
     } catch (err) {
-      console.error(err);
+      next(err);
+    }
+  }
+
+  async createPhaseAndStreet(req, res, next) {
+    let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+    let val = req.body;
+
+    try {
+      let existingRecord = await req.db.query(
+        `
+            SELECT *
+            FROM brgy_phase_street
+            WHERE brgyId = ? AND phase = ? AND street = ?
+            `,
+        [val.brgyId, val.phase, val.street]
+      );
+
+      if (existingRecord.length > 0) {
+        return res.status(400).json({
+          error: 400,
+          message: `Phase or Street has already exists on Barangay ${val.brgyDesc}.`,
+        });
+      }
+
+      val.dateCreated = date;
+      val.dateUpdated = date;
+      val.isDeleted = 0;
+
+      let result = await req.db.query(
+        `
+            INSERT INTO brgy_phase_street
+            SET ?
+            `,
+        val
+      );
+
+      if (result.insertId > 0) {
+        return res.status(200).json({ message: `Inserted Successfully.` });
+      } else {
+        return res
+          .status(500)
+          .json({ error: 500, message: `Failed to insert.` });
+      }
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePhaseAndStreet(req, res, next) {
+    let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+    let { id } = req.params;
+    let val = req.body;
+    try {
+      val.dateUpdated = date;
+
+      let result = await req.db.query(
+        `
+        UPDATE brgy_phase_street
+        SET ?
+        WHERE
+          id = ?
+      `,
+        [val, id]
+      );
+
+      if (result.affectedRows > 0) {
+        return res.status(200).json({ message: `Updated Successfully.` });
+      } else {
+        return res
+          .status(500)
+          .json({ error: 500, message: `Failed to update.` });
+      }
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async createNewAddress(req, res, next) {
+    let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+    let val = req.body;
+    let { regionId, provinceId, cityId } = req.currentUser;
+    try {
+      val.addressCode = (
+        await req.db.query(
+          `SELECT fnAddressCodeGen('${val.brgyId}') as addressCode`
+        )
+      )[0].addressCode;
+      val.dateCreated = date;
+      val.dateUpdated = date;
+
+      let result = await req.db.query(
+        `
+        INSERT INTO cvms_addresses
+        SET ?
+      `,
+        [{ ...val, regionId, provinceId, cityId }]
+      );
+
+      if (result.insertId > 0) {
+        return res.status(200).json({ message: `Inserted Successfully.` });
+      } else {
+        return res
+          .status(500)
+          .json({ error: 500, message: `Failed to insert.` });
+      }
+    } catch (err) {
+      next(err);
+    }
+  }
+  async updateAddresses(req, res, next) {
+    //carlo
+    let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+    let { id } = req.params;
+    let val = req.body;
+    try {
+      val.dateUpdated = date;
+
+      let result = await req.db.query(
+        `
+        UPDATE cvms_addresses
+        SET ?
+        WHERE
+          id = ?
+      `,
+        [val, id]
+      );
+
+      if (result.affectedRows > 0) {
+        return res.status(200).json({ message: `Updated Successfully.` });
+      } else {
+        return res
+          .status(500)
+          .json({ error: 500, message: `Failed to update.` });
+      }
+    } catch (err) {
       next(err);
     }
   }

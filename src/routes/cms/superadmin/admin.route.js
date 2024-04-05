@@ -40,8 +40,13 @@ router.post(
   controller.updateDepartmentUser
 );
 
+router.get("/getCityUsers", controller.getCityUsers);
+router.post("/addCityUser", sanitizer, controller.addCityUser);
+router.post("/updateCityUser/:id", sanitizer, controller.updateCityUser);
+
 router.get("/getLocationAddresses", controller.getLocationAddresses);
 router.get("/getAddresses", controller.getAddresses);
+router.get("/getPhaseAndStreet", controller.getPhaseAndStreet);
 router.post("/searchAddress", sanitizer, controller.searchAddress);
 router.post("/createNewAddress", sanitizer, controller.createNewAddress);
 router.post("/updateAddresses", sanitizer, controller.updateAddresses);

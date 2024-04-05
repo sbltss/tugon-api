@@ -54,10 +54,14 @@ export default async (req, res, next) => {
           });
 
         const result2 = await req.db.query(
-          `SELECT *
-                FROM department_users
-                WHERE 
-                  accountId  = ?`,
+          `
+          SELECT 
+            DU.*, 
+            CU.*
+          FROM department_users DU
+          LEFT JOIN city_users CU ON CU.accountId = DU.cityAccountId
+          WHERE 
+            DU.accountId = ?`,
           [member.accountId]
         );
 

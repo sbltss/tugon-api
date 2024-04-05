@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     let date = moment().format("YYYYMMDDHHmmss");
-   
+
     let ext = path.extname(file.originalname);
     let filename = `${randomize("Aa0", 11)}-${date}${ext}`;
     cb(null, filename);
@@ -28,16 +28,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-
 var router = express.Router();
 
 router.get("/getCertification", controller.getCertification);
 router.get("/getCertificationById/:id", controller.getCertificationById);
 router.post(
   "/createCertification",
-  upload.fields([
-    { name: "certification", maxCount: 1 },
-  ]),
+  upload.fields([{ name: "certification", maxCount: 1 }]),
   controller.createCertification
 );
 

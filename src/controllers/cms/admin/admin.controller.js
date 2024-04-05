@@ -388,7 +388,6 @@ export default class Controller {
   }
   async createNewAddress(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
-    let { brgyId } = req.body;
     let val = req.body;
     console.log(val)
     try {
