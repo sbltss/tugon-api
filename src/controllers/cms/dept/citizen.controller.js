@@ -2085,6 +2085,119 @@ export default class Controller {
       next(err);
     }
   }
+  // async createHousehold(req, res, next) {
+  //   let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+  //   let {
+  //     accountId: brgyUid,
+  //     module: mdl,
+  //     accountType,
+  //     section,
+  //   } = req.currentUser;
+
+  //   let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
+  //     req.body;
+  //   try {
+  //     let ProfileStatus = await req.db.query(
+  //       `
+  //     SELECT *
+  //     FROM citizen_verifystatus
+  //     WHERE
+  //       accountId = ? AND
+  //       services = ? AND
+  //       isDeleted = ? AND
+  //       status = ?
+  //   `,
+  //       [accountId, "PROFILE", 0, "PENDING"]
+  //     );
+
+  //     if (ProfileStatus.length > 0) {
+  //       return res
+  //         .status(401)
+  //         .json({ error: 401, message: `Citizen is not yet verified.` });
+  //     }
+
+  //     let isExists = await req.db.query(
+  //       `
+  //       SELECT *
+  //       FROM cvms_familymembers
+  //       WHERE
+  //       accountId = ? AND
+  //       status = ?
+  //     `,
+  //       [accountId, 1]
+  //     );
+  //     if (isExists.length > 0) {
+  //       return res.status(401).json({ error: 401, message: `Already exists.` });
+  //     }
+  //     let sql;
+  //     let param;
+  //     if (isHead == 0 && isEmpty(familyHeadId)) {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message: `Maari po lamang na piliin ang inyong haligi ng tahanan upang kayo ay mapabilang sa kanyang pamilya.`,
+  //       });
+  //     } else if (isHead == 0 && !isEmpty(familyHeadId)) {
+  //       sql = `
+  //         SELECT *
+  //         FROM cvms_familymembers
+  //         WHERE
+  //         addressCode = ? AND
+  //         SUBSTR(familyType,3,3) = ? AND
+  //         accountId = ?
+  //         ORDER BY familyType DESC LIMIT 1
+  //       `;
+  //       param = [addressCode, "A", familyHeadId];
+  //     } else {
+  //       sql = `
+  //         SELECT *
+  //         FROM cvms_familymembers
+  //         WHERE
+  //         addressCode = ? AND
+  //         SUBSTR(familyType,3,3) = ?
+  //         ORDER BY familyType DESC LIMIT 1
+  //       `;
+  //       param = [addressCode, "A"];
+  //     }
+  //     let checkFamily = await req.db.query(sql, param);
+  //     if (isHead == 0 && checkFamily.length == 0) {
+  //       return res.status(401).json({
+  //         error: 401,
+  //         message: `Maari po lamang na magparehistro muna ang inyong haligi ng tahanan bago ang mga myembro neto.`,
+  //       });
+  //     }
+
+  //     let result = await req.db.query(
+  //       `
+  //       CALL household_registration(
+  //         ?, ?, ?, ?, ?,
+  //         ?, ?, ?, ?, ?
+  //       )
+  //     `,
+  //       [
+  //         brgyUid,
+  //         isHead,
+  //         accountId,
+  //         addressCode,
+  //         checkFamily.length > 0 ? checkFamily[0].familyType : "00A",
+  //         familyRelation,
+  //         JSON.stringify(req.body),
+  //         date,
+  //         date,
+  //         `${mdl}:${accountType}:${section}`,
+  //       ]
+  //     );
+  //     result = result[0];
+  //     if (result.length > 0) {
+  //       res.status(200).json({ message: `tagged.` });
+  //     } else {
+  //       res.status(500).json({ error: 500, message: `error.` });
+  //     }
+  //   } catch (err) {
+  //     console.error(err);
+  //     next(err);
+  //   }
+  // }
+
   async createHousehold(req, res, next) {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     let {
@@ -2092,6 +2205,7 @@ export default class Controller {
       module: mdl,
       accountType,
       section,
+      brgyId,
     } = req.currentUser;
 
     let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
@@ -2166,11 +2280,30 @@ export default class Controller {
         });
       }
 
+      const checkBrgy = await req.db.query(
+        `
+        SELECT 
+          CA.brgyId,
+          CF.id
+        FROM
+          cvms_familymembers CF
+        LEFT JOIN
+          cvms_addresses CA
+          USING(addressCode)
+        WHERE
+          CF.accountId= ?
+        ORDER BY CF.id DESC LIMIT 1
+      `,
+        accountId
+      );
+
+      const status = 1;
+
       let result = await req.db.query(
         `
         CALL household_registration(
-          ?, ?, ?, ?, ?,  
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, 
+          ?, ?, ?, ?, ?, ?, ?
         )
       `,
         [
@@ -2184,11 +2317,18 @@ export default class Controller {
           date,
           date,
           `${mdl}:${accountType}:${section}`,
+          status,
+          req.file.path || "",
         ]
       );
       result = result[0];
-      if (result.length > 0) {
-        res.status(200).json({ message: `tagged.` });
+
+      if (result.length > 0 && status === 1) {
+        res.status(200).json({ message: `Address transfer approved.` });
+      } else if (result.length > 0 && status === 0) {
+        res
+          .status(200)
+          .json({ message: `Address transfer pending for approval.` });
       } else {
         res.status(500).json({ error: 500, message: `error.` });
       }

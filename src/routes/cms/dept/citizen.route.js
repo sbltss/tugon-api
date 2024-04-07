@@ -97,7 +97,12 @@ router.post(
 router.post("/approveApplication", sanitizer, controller.approveApplication);
 
 router.post("/searchHouseholdMembers", controller.searchHouseholdMembers);
-router.post("/createHousehold", sanitizer, controller.createHousehold);
+router.post(
+  "/createHousehold",
+  upload.single("attachment"),
+  sanitizer,
+  controller.createHousehold
+);
 router.post("/changeHousehold", sanitizer, controller.changeHousehold);
 
 router.post(
