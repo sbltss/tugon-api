@@ -178,7 +178,7 @@ export default class Controller {
         result2 = await req.db.query(
           `SELECT A.*, B.brgyDesc
          FROM ${table} A
-         LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+         LEFT JOIN cvms_brgy B ON B.cityId = A.cityId
          WHERE 
          A.accountId = ?`,
           [member.accountId]
