@@ -2344,10 +2344,13 @@ export default class Controller {
       module: mdl,
       accountType,
       section,
+      brgyId,
     } = req.currentUser;
 
     let { isHead, addressCode, accountId, familyHeadId, familyRelation } =
       req.body;
+
+    console.log(accountId);
     try {
       let ProfileStatus = await req.db.query(
         `
@@ -2437,11 +2440,31 @@ export default class Controller {
           addressCode,
         ]
       );
+
+      const checkBrgy = await req.db.query(
+        `
+        SELECT 
+          CA.brgyId,
+          CF.id
+        FROM
+          cvms_familymembers CF
+        LEFT JOIN
+          cvms_addresses CA
+          USING(addressCode)
+        WHERE
+          CF.accountId= ?
+        ORDER BY CF.id DESC LIMIT 1
+      `,
+        accountId
+      );
+
+      const status = 1;
+
       let result = await req.db.query(
         `
         CALL household_registration(
           ?, ?, ?, ?, ?,  
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?, ?
         )
       `,
         [
@@ -2455,15 +2478,22 @@ export default class Controller {
           date,
           date,
           `${mdl}:${accountType}:${section}`,
+          status,
+          req.file.path || "",
         ]
       );
       result = result[0];
-      if (result.length > 0) {
-        res.status(200).json({ message: `tagged.` });
+      if (result.length > 0 && status === 1) {
+        res.status(200).json({ message: `Address transfer approved.` });
+      } else if (result.length > 0 && status === 0) {
+        res
+          .status(200)
+          .json({ message: `Address transfer pending for approval.` });
       } else {
         res.status(500).json({ error: 500, message: `error.` });
       }
     } catch (err) {
+      console.error(err);
       next(err);
     }
   }

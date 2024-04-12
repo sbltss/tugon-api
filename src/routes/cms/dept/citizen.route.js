@@ -103,7 +103,12 @@ router.post(
   sanitizer,
   controller.createHousehold
 );
-router.post("/changeHousehold", sanitizer, controller.changeHousehold);
+router.post(
+  "/changeHousehold",
+  upload.single("attachment"),
+  sanitizer,
+  controller.changeHousehold
+);
 
 router.post(
   "/searchTraceCitizen",
