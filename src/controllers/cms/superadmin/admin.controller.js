@@ -396,7 +396,8 @@ export default class Controller {
         FROM
           credentials
         WHERE
-          email= ?
+          email= ? AND
+          isDeleted = 0
       `,
         email
       );
