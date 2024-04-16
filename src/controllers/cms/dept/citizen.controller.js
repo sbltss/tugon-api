@@ -609,7 +609,6 @@ export default class Controller {
           let uparam = [];
           uparam.push(cityId);
           uparam.push(cityId);
-          uparam.push(type);
 
           if (!global.isEmpty(accountId)) {
             ucon.push(`AND accountId = ?`);
@@ -668,8 +667,7 @@ export default class Controller {
               ) AD USING(accountId)
               WHERE
                 C.isDeleted = 0 AND
-                (RL.cityId= ? OR AD.cityId= ?) AND
-                CS.sectorId = ?
+                (RL.cityId= ? OR AD.cityId= ?)
                 ${ucon.join(" ")}
             `,
             uparam
@@ -1164,11 +1162,10 @@ export default class Controller {
             ) AD USING(accountId)
             WHERE
               C.isDeleted = 0 AND
-              (RL.cityId= ? OR AD.cityId= ?) AND
-              CS.sectorId = ?
+              (RL.cityId= ? OR AD.cityId= ?)
               ${ucon.join(" ")}
           `,
-            [cityId, cityId, type, uparam]
+            [cityId, cityId, uparam]
           );
           let citizenStatus = await req.db.query(
             `
