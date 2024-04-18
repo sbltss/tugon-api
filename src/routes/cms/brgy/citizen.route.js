@@ -112,6 +112,7 @@ router.post(
 
 router.post("/approveApplication", upload.any(), controller.approveApplication);
 
+
 router.post("/searchHouseholdMembers", controller.searchHouseholdMembers);
 router.post(
   "/createHousehold",

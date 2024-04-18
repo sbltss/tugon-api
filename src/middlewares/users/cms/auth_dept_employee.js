@@ -47,23 +47,42 @@ export default async (req, res, next) => {
             message: "This account has been deleted",
           });
 
-        if (member.accountType !== "department")
+        if (
+          member.accountType !== "department" &&
+          member.accountType !== "city"
+        ) {
           return res.status(403).json({
             error: 403,
             message: "You do not have access to this request.",
           });
+        }
+        let result2 = [];
 
-        const result2 = await req.db.query(
-          `
-          SELECT 
-            DU.*, 
-            CU.*
-          FROM department_users DU
-          LEFT JOIN city_users CU ON CU.accountId = DU.cityAccountId
-          WHERE 
-            DU.accountId = ?`,
-          [member.accountId]
-        );
+        if (member.accountType === "city") {
+          result2 = await req.db.query(
+            `
+            SELECT 
+              *
+            FROM city_users
+            WHERE 
+              accountId = ?`,
+            [member.accountId]
+          );
+        }
+
+        if (member.accountType === "department") {
+          result2 = await req.db.query(
+            `
+            SELECT 
+              DU.*, 
+              CU.*
+            FROM department_users DU
+            LEFT JOIN city_users CU ON CU.accountId = DU.cityAccountId
+            WHERE 
+              DU.accountId = ?`,
+            [member.accountId]
+          );
+        }
 
         delete result2.password;
         delete result2.isDeleted;
@@ -73,6 +92,8 @@ export default async (req, res, next) => {
 
         if (!memberInfo)
           return res.status(500).json({ message: "Internal Server Error" });
+
+        console.log(memberInfo);
 
         if (memberInfo.type === "employee")
           return res.status(403).json({

@@ -711,6 +711,7 @@ export default class Controller {
           SELECT
             S.accountId,
             S.sectorId,
+            S.status,
             C.name,
             C.requirements
           FROM citizen_sectors S
@@ -2211,6 +2212,7 @@ export default class Controller {
                 [accountId, s]
               );
             } else {
+              console.log(s);
               await req.db.query(
                 `
                 INSERT INTO citizen_sectors
@@ -2219,6 +2221,7 @@ export default class Controller {
                 {
                   accountId: accountId,
                   sectorId: s,
+                  status: +s === 1 ? "APPROVED" : "PENDING",
                   dateCreated: date,
                   dateUpdated: date,
                   attachment: files.find((f) => f.fieldname == s).path,

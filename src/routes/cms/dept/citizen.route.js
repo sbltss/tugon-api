@@ -95,6 +95,11 @@ router.post(
 );
 
 router.post("/approveApplication", sanitizer, controller.approveApplication);
+router.post(
+  "/approveDepartmentApplication",
+  sanitizer,
+  controller.approveDepartmentApplication
+);
 
 router.post("/searchHouseholdMembers", controller.searchHouseholdMembers);
 router.post(
@@ -148,10 +153,11 @@ router.post(
 
 router.get("/getVerifiedCitizens", controller.getVerifiedCitizens);
 router.get("/getUnverifiedCitizens", controller.getUnverifiedCitizens);
+router.post("/getPendingCitizens", controller.getPendingCitizens);
 router.post("/searchPhaseAndStreet", controller.searchPhaseAndStreet);
 router.post("/createPhaseAndStreet", controller.createPhaseAndStreet);
 router.post("/updatePhaseAndStreet/:id", controller.updatePhaseAndStreet);
-router.get("/getPhaseAndStreet/:brgyId", controller.getPhaseAndStreet);
+router.get("/getPhaseAndStreet", controller.getPhaseAndStreet);
 router.post("/createNewAddress", controller.createNewAddress);
 router.post("/updateAddresses/:id", controller.updateAddresses);
 

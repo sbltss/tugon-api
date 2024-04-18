@@ -20,6 +20,11 @@ import deptCitizen from "#cms_route/dept/citizen.route";
 import deptDashboard from "#cms_route/dept/dashboard.route";
 import deptSeniorId from "#cms_route/dept/seniorid.route";
 import deptCertification from "#cms_route/dept/certification.route";
+import deptClearance from "#cms_route/dept/clearance.route";
+import deptCert from "#cms_route/dept/certification.route";
+import deptCedula from "#cms_route/dept/cedula.route";
+import deptBrgyId from "#cms_route/dept/brgyid.route";
+import deptEvents from "#cms_route/dept/events.route";
 
 //CPMS
 import employee from "#cms_route/cpms/employee.route";
@@ -69,6 +74,11 @@ router.use("/dept/citizen", deptEmpAuth, deptCitizen);
 router.use("/dept/dashboard", deptEmpAuth, deptDashboard);
 router.use("/dept/seniorId", deptEmpAuth, deptSeniorId);
 router.use("/dept/certification", deptEmpAuth, deptCertification);
+router.use("/dept/clearance", deptEmpAuth, deptClearance);
+router.use("/dept/cert", deptEmpAuth, deptCert);
+router.use("/dept/cedula", deptEmpAuth, deptCedula);
+router.use("/dept/brgyId", deptEmpAuth, deptBrgyId);
+router.use("/dept/events", deptEmpAuth, deptEvents);
 
 //CPMS
 router.use("/cpms/employee", employeeAuth, employee);

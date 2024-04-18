@@ -1307,7 +1307,7 @@ export default class Controller {
             (RL.cityId= ? OR AD.cityId= ?)
             ${ucon.join(" ")}
         `,
-          [cityId, uparam]
+          [cityId, cityId, uparam]
         );
         let citizenStatus = await req.db.query(
           `
@@ -2045,6 +2045,78 @@ export default class Controller {
           error: 401,
           message:
             "Please upload supporting documents first before approving the application of the citizen.",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      next(err);
+    }
+  }
+
+  async approveDepartmentApplication(req, res, next) {
+    let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+    let {
+      accountId: brgyUid,
+      module: mdl,
+      accountType,
+      section,
+      type,
+    } = req.currentUser;
+    let { accountId } = req.body;
+
+    try {
+      let check = await req.db.query(
+        `
+          SELECT *
+          FROM citizen_sectors
+          WHERE
+            accountId = ? AND
+            sectorId = ?
+        `,
+        [accountId, type]
+      );
+      if (check.length === 0) {
+        return res.status(401).json({
+          error: 401,
+          message: "Invalid account id.",
+        });
+      }
+      let result = await req.db.query(
+        `
+          UPDATE citizen_sectors
+          SET status = "APPROVED"
+          WHERE
+            accountId = ? AND
+            sectorId = ?
+        `,
+        [accountId, type]
+      );
+
+      let val = {
+        status: "APPROVED",
+        dateUpdated: date,
+      };
+
+      if (result.affectedRows > 0) {
+        let auditObj = {
+          createdBy: brgyUid,
+          accountId: accountId,
+          userPriviledge: `${mdl}:${accountType}:${section}`,
+          actionType: "UPDATE SECTOR STATUS",
+          crud: "UPDATE",
+          newValue: JSON.stringify(val),
+          dateCreated: date,
+          dateUpdated: date,
+        };
+
+        await audit.auditData(req, auditObj);
+        return res
+          .status(200)
+          .json({ status: "APPROVED", message: `Approved successfully.` });
+      } else {
+        return res.status(200).json({
+          status: "FAILED",
+          message: `Failed to approve application.`,
         });
       }
     } catch (err) {
@@ -3211,6 +3283,162 @@ export default class Controller {
     }
   }
 
+  async getPendingCitizens(req, res, next) {
+    //carlo
+    let { accountId, firstName, middleName, lastName } = req.body;
+    const { accountType, module, brgyId, cityId, type } = req.currentUser;
+
+    if (accountType === "department") {
+      try {
+        let ucon = [];
+        let uparam = [];
+
+        if (!global.isEmpty(accountId)) {
+          ucon.push(`AND accountId = ?`);
+          uparam.push(accountId);
+        }
+        if (!global.isEmpty(firstName)) {
+          ucon.push(`AND firstName LIKE ?`);
+          uparam.push(`${firstName}%`);
+        }
+        if (!global.isEmpty(middleName)) {
+          ucon.push(`AND middleName LIKE ?`);
+          uparam.push(`${middleName}%`);
+        }
+        if (!global.isEmpty(lastName)) {
+          ucon.push(`AND lastName LIKE ?`);
+          uparam.push(`${lastName}%`);
+        }
+        if (type === 4) {
+          ucon.push(
+            `AND C.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)`
+          );
+        }
+
+        let citizenInfo = await req.db.query(
+          `
+          SELECT
+            C.*,
+            CR.username,
+            CC.primaryEmail,
+            CC.primaryMobile
+          FROM citizen_info C
+          LEFT JOIN
+            citizen_credential CR
+            USING(accountId)
+          LEFT JOIN
+            citizen_contacts CC
+            USING(accountId)
+          LEFT JOIN
+            registration_logs RL
+            USING(accountId)
+          LEFT JOIN(
+            SELECT 
+              CF.addressCode,
+              CA.brgyId,
+              CF.accountId,
+              BR.cityCode AS cityId
+            FROM 
+              cvms_familymembers CF
+            LEFT JOIN
+              cvms_addresses CA 
+              USING(addressCode)
+            LEFT JOIN
+              brgy BR
+              ON BR.brgyCode = CA.brgyId
+            WHERE
+              CF.isDeleted= 0
+            ORDER BY CF.dateCreated DESC
+          ) AD USING(accountId)
+          LEFT JOIN citizen_sectors CS ON CS.accountId = C.accountId
+          WHERE
+            C.isDeleted = 0 AND
+            (RL.cityId= ? OR AD.cityId= ?) AND
+            (CS.sectorId = ? AND status = "PENDING")
+            ${ucon.join(" ")}
+        `,
+          [cityId, cityId, type, uparam]
+        );
+        let citizenStatus = await req.db.query(
+          `
+          SELECT *
+          FROM citizen_verifystatus
+          WHERE
+            services IN ("PROFILE","CVMS")
+        `
+        );
+        let citizenFiles = await req.db.query(
+          `
+          SELECT *
+          FROM
+            citizen_files
+          WHERE
+            module = ? AND
+            isDeleted = ?
+        `,
+          ["PROFILE", 0]
+        );
+
+        let address = await req.db.query(`
+          SELECT
+            F.householdId,
+            F.addressCode,
+            F.accountId,
+            F.familyType,
+            F.familyRelation,
+            A.unitNo,
+            A.houseNo,
+            A.street,
+            A.phase,
+            B.brgyId,
+            B.brgyDesc,
+            B.cityDesc,
+            B.provinceDesc,
+            B.regionDesc,
+            F.verifiedBy,
+            F.dateCreated,
+            BU.module AS vModule,
+            BU.firstName AS vFirstName,
+            BU.lastName AS vLastName,
+            BU.contactNumber AS vContactNumber
+          FROM cvms_familymembers F
+          LEFT JOIN cvms_addresses A ON A.addressCode = F.addressCode
+          LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
+          LEFT JOIN brgy_users BU ON BU.accountId = F.verifiedBy
+        `);
+        let sectors = await req.db.query(`
+          SELECT
+            S.accountId,
+            S.sectorId,
+            S.status,
+            C.name,
+            C.requirements
+          FROM citizen_sectors S
+          LEFT JOIN cms_sectors C ON C.id = S.sectorId
+          WHERE
+            S.isDeleted = 0
+        `);
+        let result = citizenInfo.map((i) => {
+          let status = citizenStatus.filter((s) => s.accountId === i.accountId);
+          let files = citizenFiles.filter((f) => f.accountId === i.accountId);
+          let adds = address.filter((a) => a.accountId === i.accountId);
+          let sect = sectors.filter((s) => s.accountId === i.accountId);
+
+          i.status = status[0].status;
+          i.files = files;
+          i.address = adds;
+          i.sectors = sect;
+          return i;
+        });
+
+        return res.status(200).json(result);
+      } catch (err) {
+        console.error(err);
+        next(err);
+      }
+    }
+  }
+
   async searchPhaseAndStreet(req, res, next) {
     let { street, phase, brgyDesc } = req.body;
     const { cityId } = req.currentUser;
@@ -3261,17 +3489,15 @@ export default class Controller {
   }
 
   async getPhaseAndStreet(req, res, next) {
-    const { brgyId } = req.params;
+    // const { brgyId } = req.params;
     try {
       let result = await req.db.query(
         `
         SELECT * 
         FROM brgy_phase_street
         WHERE 
-          isDeleted = 0 AND
-          brgyId = ?
-      `,
-        brgyId
+          isDeleted = 0
+      `
       );
       return res.status(200).json(result);
     } catch (err) {

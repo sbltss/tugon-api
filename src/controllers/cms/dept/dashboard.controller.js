@@ -163,8 +163,7 @@ export default class Controller {
               LEFT JOIN citizen_info CI ON CI.accountId = A.accountId
               JOIN citizen_verifystatus CV ON CV.accountId = CI.accountId
               WHERE
-                CI.isDeleted = 0 AND
-                CI.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)
+                CI.isDeleted = 0
               GROUP BY
                 A.accountId
             ) C ON C.brgyId = B.brgyCode
@@ -499,6 +498,7 @@ export default class Controller {
 
   async getVerifiedCount(req, res, next) {
     const { cityId, brgyId, accountType, type } = req.currentUser;
+    console.log(accountType);
     if (accountType === "department") {
       try {
         let count;
@@ -639,6 +639,7 @@ export default class Controller {
 
   async getUnverifiedCount(req, res, next) {
     const { cityId, brgyId, accountType, type } = req.currentUser;
+    console.log(accountType);
     if (accountType === "department") {
       try {
         let count;
@@ -1078,6 +1079,8 @@ export default class Controller {
     let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
     const { cityId, brgyId, accountType, type } = req.currentUser;
 
+    console.log(req.currentUser, "ASdasdasdkjasdflkjadlfj1lk2j31lkj23");
+
     if (accountType === "department") {
       try {
         let events;
@@ -1087,11 +1090,11 @@ export default class Controller {
             SELECT 
               BE.*
             FROM brgy_events BE
-            LEFT JOIN brgy B ON B.brgyCode = BE.brgyId
+            LEFT JOIN cvms_brgy B ON B.brgyId = BE.brgyId
             WHERE
               BE.dateFrom < ? AND
               BE.dateTo > ? AND
-              B.cityCode = ? AND
+              B.cityId = ? AND
               BE.eventType IN (1, 2)
           `,
             [date, date, cityId]
@@ -1102,11 +1105,11 @@ export default class Controller {
             SELECT 
               BE.*
             FROM brgy_events BE
-            LEFT JOIN brgy B ON B.brgyCode = BE.brgyId
+            LEFT JOIN cvms_brgy B ON B.brgyId = BE.brgyId
             WHERE
               BE.dateFrom < ? AND
               BE.dateTo > ? AND
-              B.cityCode = ? AND
+              B.cityId = ? AND
               BE.eventType IN (1, ?)
           `,
             [date, date, cityId, type]
@@ -1122,15 +1125,17 @@ export default class Controller {
         let events = await req.db.query(
           `
           SELECT *
-          FROM brgy_events
+          FROM brgy_events BE
+          LEFT JOIN cvms_brgy B ON B.brgyId = BE.brgyId
           WHERE
             dateFrom < ? AND
             dateTo > ? AND
-            B.cityCode = ? AND
+            B.cityId = ? AND
             BE.eventType IN (1, 2)
         `,
           [date, date, cityId]
         );
+
         return res.status(200).json(events);
       } catch (err) {
         console.error(err);
@@ -1151,10 +1156,11 @@ export default class Controller {
             SELECT 
               BE.*
             FROM brgy_events BE
-            LEFT JOIN brgy B ON B.brgyCode = BE.brgyId
+            LEFT JOIN cvms_brgy B ON B.brgyId = BE.brgyId
             WHERE
               BE.dateFrom < ? AND
-              B.cityCode = ? AND
+              BE.dateTo > ? AND
+              B.cityId = ? AND
               BE.eventType IN (1, 2)
           `,
             [date, date, cityId]
@@ -1165,10 +1171,11 @@ export default class Controller {
             SELECT 
               BE.*
             FROM brgy_events BE
-            LEFT JOIN brgy B ON B.brgyCode = BE.brgyId
+            LEFT JOIN cvms_brgy B ON B.brgyId = BE.brgyId
             WHERE
               BE.dateFrom < ? AND
-              B.cityCode = ? AND
+              BE.dateTo > ? AND
+              B.cityId = ? AND
               BE.eventType IN (1, ?)
           `,
             [date, date, cityId, type]
@@ -1184,10 +1191,12 @@ export default class Controller {
         let events = await req.db.query(
           `
           SELECT *
-          FROM brgy_events
+          FROM brgy_events BE
+          LEFT JOIN cvms_brgy B ON B.brgyId = BE.brgyId
           WHERE
             dateFrom < ? AND
-            B.cityCode = ? AND
+            dateTo > ? AND
+            B.cityId = ? AND
             BE.eventType IN (1, 2)
         `,
           [date, date, cityId]
