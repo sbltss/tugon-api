@@ -1076,6 +1076,7 @@ export default class Controller {
             SELECT
               S.accountId,
               S.sectorId,
+              S.status,
               C.name,
               C.requirements
             FROM citizen_sectors S
@@ -2117,6 +2118,78 @@ export default class Controller {
         return res.status(200).json({
           status: "FAILED",
           message: `Failed to approve application.`,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      next(err);
+    }
+  }
+
+  async declineDepartmentApplication(req, res, next) {
+    let date = mtz().tz("Asia/Taipei").format("YYYY-MM-DD HH:mm:ss");
+    let {
+      accountId: brgyUid,
+      module: mdl,
+      accountType,
+      section,
+      type,
+    } = req.currentUser;
+    let { accountId } = req.body;
+
+    try {
+      let check = await req.db.query(
+        `
+          SELECT *
+          FROM citizen_sectors
+          WHERE
+            accountId = ? AND
+            sectorId = ?
+        `,
+        [accountId, type]
+      );
+      if (check.length === 0) {
+        return res.status(401).json({
+          error: 401,
+          message: "Invalid account id.",
+        });
+      }
+      let result = await req.db.query(
+        `
+          UPDATE citizen_sectors
+          SET status = "DECLINED"
+          WHERE
+            accountId = ? AND
+            sectorId = ?
+        `,
+        [accountId, type]
+      );
+
+      let val = {
+        status: "DECLINED",
+        dateUpdated: date,
+      };
+
+      if (result.affectedRows > 0) {
+        let auditObj = {
+          createdBy: brgyUid,
+          accountId: accountId,
+          userPriviledge: `${mdl}:${accountType}:${section}`,
+          actionType: "UPDATE SECTOR STATUS",
+          crud: "UPDATE",
+          newValue: JSON.stringify(val),
+          dateCreated: date,
+          dateUpdated: date,
+        };
+
+        await audit.auditData(req, auditObj);
+        return res
+          .status(200)
+          .json({ status: "DECLINED", message: `Declined successfully.` });
+      } else {
+        return res.status(200).json({
+          status: "FAILED",
+          message: `Failed to decline application.`,
         });
       }
     } catch (err) {
@@ -3285,30 +3358,12 @@ export default class Controller {
 
   async getPendingCitizens(req, res, next) {
     //carlo
-    let { accountId, firstName, middleName, lastName } = req.body;
     const { accountType, module, brgyId, cityId, type } = req.currentUser;
 
     if (accountType === "department") {
       try {
         let ucon = [];
-        let uparam = [];
 
-        if (!global.isEmpty(accountId)) {
-          ucon.push(`AND accountId = ?`);
-          uparam.push(accountId);
-        }
-        if (!global.isEmpty(firstName)) {
-          ucon.push(`AND firstName LIKE ?`);
-          uparam.push(`${firstName}%`);
-        }
-        if (!global.isEmpty(middleName)) {
-          ucon.push(`AND middleName LIKE ?`);
-          uparam.push(`${middleName}%`);
-        }
-        if (!global.isEmpty(lastName)) {
-          ucon.push(`AND lastName LIKE ?`);
-          uparam.push(`${lastName}%`);
-        }
         if (type === 4) {
           ucon.push(
             `AND C.birthdate <= DATE_SUB(SUBSTR(CONVERT_TZ(NOW(), 'SYSTEM', '+08:00'),1,10), INTERVAL 60 YEAR)`
@@ -3357,7 +3412,7 @@ export default class Controller {
             (CS.sectorId = ? AND status = "PENDING")
             ${ucon.join(" ")}
         `,
-          [cityId, cityId, type, uparam]
+          [cityId, cityId, type]
         );
         let citizenStatus = await req.db.query(
           `
@@ -3406,18 +3461,23 @@ export default class Controller {
           LEFT JOIN cvms_brgy B ON B.brgyId = A.brgyId
           LEFT JOIN brgy_users BU ON BU.accountId = F.verifiedBy
         `);
-        let sectors = await req.db.query(`
+        let sectors = await req.db.query(
+          `
           SELECT
             S.accountId,
             S.sectorId,
             S.status,
+            S.attachment,
             C.name,
             C.requirements
           FROM citizen_sectors S
           LEFT JOIN cms_sectors C ON C.id = S.sectorId
           WHERE
-            S.isDeleted = 0
-        `);
+            S.isDeleted = 0 AND
+            S.sectorId = ?
+        `,
+          type
+        );
         let result = citizenInfo.map((i) => {
           let status = citizenStatus.filter((s) => s.accountId === i.accountId);
           let files = citizenFiles.filter((f) => f.accountId === i.accountId);

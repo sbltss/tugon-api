@@ -56,6 +56,8 @@ export default class Controller {
     let { email, ...body } = req.body;
     let { regionId, provinceId, cityId } = req.currentUser;
 
+    console.log(req.body, "BODY");
+
     const transaction = await req.db.getConnection();
     await transaction.beginTransaction();
     try {
