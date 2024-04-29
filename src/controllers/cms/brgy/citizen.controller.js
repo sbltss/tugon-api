@@ -1670,12 +1670,10 @@ export default class Controller {
       accountType,
       section,
     } = req.currentUser;
-    let {
-      accountId,
-      oldData,
-      newData: { primaryEmail, ...newData },
-      sector,
-    } = req.body;
+    let { accountId, oldData, newData, sector } = req.body;
+
+    let parsedOldData = JSON.parse(oldData);
+    let parsedNewData = JSON.parse(newData);
 
     try {
       // let validateName = await validateCitizenName(req);
@@ -1690,11 +1688,11 @@ export default class Controller {
         WHERE
           primaryEmail= ?
       `,
-        primaryEmail
+        parsedNewData.primaryEmail
       );
 
       if (checkEmail.length > 0 && checkEmail[0].accountId !== accountId) {
-        if (primaryEmail !== "no-email@gmail.com") {
+        if (parsedNewData.primaryEmail !== "no-email@gmail.com") {
           return res
             .status(409)
             .json({ error: 409, message: "Email address already in use" });
@@ -1702,8 +1700,9 @@ export default class Controller {
       }
 
       if (
-        primaryEmail &&
-        (checkEmail.length === 0 || primaryEmail === "no-email@gmail.com")
+        parsedNewData.primaryEmail &&
+        (checkEmail.length === 0 ||
+          parsedNewData.primaryEmail === "no-email@gmail.com")
       ) {
         let updateEmail = await req.db.query(
           `
@@ -1712,12 +1711,15 @@ export default class Controller {
             WHERE
             accountId = ?
           `,
-          [{ primaryEmail, dateUpdated: date }, accountId]
+          [
+            { primaryEmail: parsedNewData.primaryEmail, dateUpdated: date },
+            accountId,
+          ]
         );
         if (updateEmail.affectedRows === 0)
           throw new Error("Failed to update email");
       }
-      newData.dateUpdated = date;
+      parsedNewData.dateUpdated = date;
       let result = await req.db.query(
         `
           UPDATE citizen_info
@@ -1725,7 +1727,7 @@ export default class Controller {
           WHERE
           accountId = ?
         `,
-        [newData, accountId]
+        [parsedNewData, accountId]
       );
 
       let auditObj = {
@@ -1734,8 +1736,8 @@ export default class Controller {
         userPriviledge: `${mdl}:${accountType}:${section}`,
         actionType: "UPDATE PROFILE",
         crud: "UPDATE",
-        oldValue: JSON.stringify(oldData),
-        newValue: JSON.stringify(newData),
+        oldValue: JSON.stringify(parsedOldData),
+        newValue: JSON.stringify(parsedNewData),
         dateCreated: date,
         dateUpdated: date,
       };
