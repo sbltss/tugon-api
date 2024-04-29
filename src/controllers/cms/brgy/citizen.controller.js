@@ -1723,6 +1723,7 @@ export default class Controller {
           throw new Error("Failed to update email");
       }
       parsedNewData.dateUpdated = date;
+      delete parsedNewData.primaryEmail;
       let result = await req.db.query(
         `
           UPDATE citizen_info
