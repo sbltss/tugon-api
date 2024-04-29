@@ -98,7 +98,7 @@ router.post(
 router.get("/sectorLists", controller.sectorLists);
 router.post(
   "/updateCitizenProfile",
-  sanitizer,
+  upload.any(),
   controller.updateCitizenProfile
 );
 router.post(
@@ -111,7 +111,6 @@ router.post(
 );
 
 router.post("/approveApplication", upload.any(), controller.approveApplication);
-
 
 router.post("/searchHouseholdMembers", controller.searchHouseholdMembers);
 router.post(
