@@ -1672,6 +1672,9 @@ export default class Controller {
     } = req.currentUser;
     let { accountId, oldData, newData, sector } = req.body;
 
+    console.log(oldData);
+    console.log(newData);
+
     let parsedOldData = JSON.parse(oldData);
     let parsedNewData = JSON.parse(newData);
 
