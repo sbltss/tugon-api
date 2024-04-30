@@ -1671,7 +1671,7 @@ export default class Controller {
       accountType,
       section,
     } = req.currentUser;
-    let { accountId, oldData, newData, sector } = req.body;
+    let { accountId, oldData, newData, sectors } = req.body;
 
     console.log(oldData);
     console.log(newData);
