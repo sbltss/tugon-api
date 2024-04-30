@@ -1747,17 +1747,17 @@ export default class Controller {
         dateCreated: date,
         dateUpdated: date,
       };
-      if (!isEmpty(sector)) {
+      if (!isEmpty(sectors)) {
         await req.db.query(
           `
-            UPDATE citizen_sectors
+            UPDATE citizen_ss
             SET isDeleted = 1
             WHERE
               accountId = ?
           `,
           [accountId]
         );
-        for (let s of sector) {
+        for (let s of sectors) {
           let check = await req.db.query(
             `
               SELECT *
