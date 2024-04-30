@@ -1675,6 +1675,7 @@ export default class Controller {
 
     console.log(oldData);
     console.log(newData);
+    console.log(req.body);
 
     let parsedOldData = JSON.parse(oldData);
     let parsedNewData = JSON.parse(newData);
@@ -1765,6 +1766,19 @@ export default class Controller {
                 accountId = ? AND
                 sectorId = ?
             `,
+            [accountId, s.id]
+          );
+
+          console.log(check);
+
+          console.log(
+            `
+          SELECT *
+          FROM citizen_sectors
+          WHERE
+            accountId = ? AND
+            sectorId = ?
+        `,
             [accountId, s.id]
           );
           if (check.length > 0) {
