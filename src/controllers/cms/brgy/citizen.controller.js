@@ -712,6 +712,7 @@ export default class Controller {
             S.accountId,
             S.sectorId,
             S.status,
+            S.attachment,
             C.name,
             C.requirements
           FROM citizen_sectors S
