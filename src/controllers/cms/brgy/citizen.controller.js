@@ -1766,7 +1766,7 @@ export default class Controller {
                 accountId = ? AND
                 sectorId = ?
             `,
-            [accountId, s.id]
+            [accountId, s]
           );
 
           console.log(check);
@@ -1779,7 +1779,7 @@ export default class Controller {
             accountId = ? AND
             sectorId = ?
         `,
-            [accountId, s.id]
+            [accountId, s]
           );
           if (check.length > 0) {
             console.log(
@@ -1790,7 +1790,7 @@ export default class Controller {
                 accountId = ? AND
                 sectorId = ?
             `,
-              [accountId, s.id]
+              [accountId, s]
             );
             await req.db.query(
               `
@@ -1800,7 +1800,7 @@ export default class Controller {
                   accountId = ? AND
                   sectorId = ?
               `,
-              [accountId, s.id]
+              [accountId, s]
             );
           } else {
             await req.db.query(
@@ -1810,7 +1810,7 @@ export default class Controller {
               `,
               {
                 accountId: accountId,
-                sectorId: s.id,
+                sectorId: s,
                 dateCreated: date,
                 dateUpdated: date,
               }
