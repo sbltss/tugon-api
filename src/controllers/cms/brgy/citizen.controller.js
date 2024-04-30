@@ -1750,7 +1750,7 @@ export default class Controller {
       if (!isEmpty(sectors)) {
         await req.db.query(
           `
-            UPDATE citizen_ss
+            UPDATE citizen_sectors
             SET isDeleted = 1
             WHERE
               accountId = ?
