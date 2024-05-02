@@ -1673,10 +1673,6 @@ export default class Controller {
     } = req.currentUser;
     let { accountId, oldData, newData, sectors } = req.body;
 
-    console.log(oldData);
-    console.log(newData);
-    console.log(req.body);
-
     let parsedOldData = JSON.parse(oldData);
     let parsedNewData = JSON.parse(newData);
 
@@ -1769,29 +1765,7 @@ export default class Controller {
             [accountId, s]
           );
 
-          console.log(check);
-
-          console.log(
-            `
-          SELECT *
-          FROM citizen_sectors
-          WHERE
-            accountId = ? AND
-            sectorId = ?
-        `,
-            [accountId, s]
-          );
           if (check.length > 0) {
-            console.log(
-              `
-              UPDATE citizen_sectors
-              SET isDeleted = 0
-              WHERE
-                accountId = ? AND
-                sectorId = ?
-            `,
-              [accountId, s]
-            );
             await req.db.query(
               `
                 UPDATE citizen_sectors

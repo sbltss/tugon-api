@@ -297,6 +297,8 @@ export default class Controller {
       mobileNumber,
       username,
       password,
+      qId,
+      aId,
     } = req.body;
 
     try {
@@ -308,7 +310,8 @@ export default class Controller {
         CALL citizen_registration_v2(
           ?, ?, ?, ?, ?, 
           ?, ?, ?, ?, ?,
-          ?, ?, ?, ?
+          ?, ?, ?, ?, ?,
+          ?
         )`,
         [
           req.genAccountId,
@@ -325,6 +328,8 @@ export default class Controller {
           date,
           date,
           val,
+          qId,
+          aId,
         ]
       );
       let results = result[0];
