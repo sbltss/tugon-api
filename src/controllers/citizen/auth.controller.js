@@ -10,6 +10,7 @@ import OTP from "#helpers/otp";
 import global from "#helpers/global";
 import { v4 as uuidv4 } from "uuid";
 import audit from "#helpers/audit";
+import { registrationLogs } from "#helpers/logs";
 
 let sendgrid = new SendGrid();
 let otp = new OTP();
@@ -297,12 +298,17 @@ export default class Controller {
       mobileNumber,
       username,
       password,
+      regionId,
+      provinceId,
+      cityId,
+      brgyId,
       qId,
       aId,
     } = req.body;
 
     try {
-      let val = JSON.stringify({ ...req.body, accountId: req.genAccountId });
+      let genAccountId = req.genAccountId;
+      let val = JSON.stringify({ ...req.body, accountId: genAccountId });
       let npass = await hash.hashPassword(password);
 
       let result = await req.db.query(
@@ -314,7 +320,7 @@ export default class Controller {
           ?
         )`,
         [
-          req.genAccountId,
+          genAccountId,
           firstName,
           middleName,
           lastName,
@@ -334,6 +340,19 @@ export default class Controller {
       );
       let results = result[0];
       if (results.length > 0) {
+        const logs = await registrationLogs(req.db, {
+          accountId: genAccountId,
+          type: "citizen",
+          registeredBy: genAccountId,
+          regionId,
+          provinceId,
+          cityId,
+          brgyId,
+          dateCreated: date,
+        });
+
+        if (!logs.insertId) throw new Error("Failed to insert logs");
+
         return res
           .status(200)
           .json({ data: results[0], message: `Successfully Signed Up.` });
