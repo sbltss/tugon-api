@@ -118,8 +118,18 @@ export default class Controller {
         let info = await req.db.query(
           `
           SELECT 
-            accountId
-          FROM citizen_info
+            CI.*,
+            CC.primaryEmail AS email,
+            CC.tempEmail,
+            CC.primaryMobile AS mobileNumber,
+            CC.tempMobile AS tempMobileNumber,
+            RL.regionId,
+            RL.provinceId,
+            RL.cityId,
+            RL.brgyId
+          FROM citizen_info CI
+          LEFT JOIN citizen_contacts CC USING(accountId)
+          LEFT JOIN registration_logs RL USING(accountId)
           WHERE
             accountId = ?
         `,
@@ -163,8 +173,8 @@ export default class Controller {
         let token = jwt.sign(payload, jwtSecret, {
           expiresIn: "365d",
         });
-        console.log(info);
-        return res.status(200).json({ token: token });
+        console.log(info[0], "123123123");
+        return res.status(200).json({ data: info[0], token: token });
       } else {
         return res.status(401).json({
           error: 401,
@@ -223,6 +233,8 @@ export default class Controller {
           let registrantName = `${firstName || ""}${middleName || ""}${
             lastName || ""
           }${suffix || ""}`.toLowerCase();
+          console.log(matchName, "matchName");
+          console.log(registrantName, "registrantName");
           return registrantName === matchName;
         });
         if (filterMatches.length > 0) {

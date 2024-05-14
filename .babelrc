@@ -14,9 +14,11 @@
 
           "#citizen_ctrl": "./src/controllers/citizen",
           "#citizen_ctrl_head": "./src/controllers/citizen/familyhead",
+          "#citizen_crtl_senior": "./src/controllers/citizen/senior",
 
           "#citizen_route": "./src/routes/citizen",
           "#citizen_route_head": "./src/routes/citizen/familyhead",
+          "#citizen_route_senior": "./src/routes/citizen/senior",
 
           "#cms_ctrl": "./src/controllers/cms",
           "#cms_route": "./src/routes/cms",

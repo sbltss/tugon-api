@@ -1583,7 +1583,8 @@ export default class Controller {
     } = req.body;
 
     try {
-      const defaultPass = randomatic("Aa0", 8);
+      // const defaultPass = randomatic("Aa0", 8);
+      const defaultPass = "Barangay2023";
 
       let val = JSON.stringify({ ...req.body, accountId: req.genAccountId });
       let npass = await hash.hashPassword(defaultPass);

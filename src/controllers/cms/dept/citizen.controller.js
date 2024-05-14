@@ -1512,7 +1512,8 @@ export default class Controller {
     } = req.body;
 
     try {
-      const defaultPass = randomatic("Aa0", 8);
+      // const defaultPass = randomatic("Aa0", 8);
+      const defaultPass = "Barangay2023";
 
       let val = JSON.stringify({ ...req.body, accountId: req.genAccountId });
       let npass = await hash.hashPassword(defaultPass);
@@ -3433,7 +3434,29 @@ export default class Controller {
         `,
           ["PROFILE", 0]
         );
-
+        let oscaInfo = await req.db.query(
+          `
+          SELECT *
+          FROM
+            citizen_osca_info
+          WHERE
+            status = 0
+        `
+        );
+        let citizenAccountId =
+          citizenInfo.length > 0 ? citizenInfo[0].accountId : "";
+        let oscaFiles = await req.db.query(
+          `
+          SELECT *
+          FROM
+            citizen_files
+          WHERE
+            accountId = ? AND
+            isDeleted = 0 AND
+            (type = "SENIOR_ID" OR type = "SENIOR_DOCUMENT")
+        `,
+          citizenAccountId
+        );
         let address = await req.db.query(`
           SELECT
             F.householdId,
@@ -3483,11 +3506,13 @@ export default class Controller {
           let files = citizenFiles.filter((f) => f.accountId === i.accountId);
           let adds = address.filter((a) => a.accountId === i.accountId);
           let sect = sectors.filter((s) => s.accountId === i.accountId);
-
+          let osca = oscaInfo.filter((s) => s.accountId === i.accountId);
           i.status = status[0].status;
           i.files = files;
           i.address = adds;
           i.sectors = sect;
+          i.oscaInfo = osca[0];
+          i.oscaFiles = oscaFiles;
           return i;
         });
 
