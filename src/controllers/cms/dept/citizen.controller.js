@@ -3443,19 +3443,15 @@ export default class Controller {
             status = 0
         `
         );
-        let citizenAccountId =
-          citizenInfo.length > 0 ? citizenInfo[0].accountId : "";
         let oscaFiles = await req.db.query(
           `
           SELECT *
           FROM
             citizen_files
           WHERE
-            accountId = ? AND
             isDeleted = 0 AND
             (type = "SENIOR_ID" OR type = "SENIOR_DOCUMENT")
-        `,
-          citizenAccountId
+        `
         );
         let address = await req.db.query(`
           SELECT
@@ -3507,12 +3503,14 @@ export default class Controller {
           let adds = address.filter((a) => a.accountId === i.accountId);
           let sect = sectors.filter((s) => s.accountId === i.accountId);
           let osca = oscaInfo.filter((s) => s.accountId === i.accountId);
+          let oscaFile = oscaFiles.filter((s) => s.accountId === i.accountId);
+          console.log(oscaFile);
           i.status = status[0].status;
           i.files = files;
           i.address = adds;
           i.sectors = sect;
           i.oscaInfo = osca[0];
-          i.oscaFiles = oscaFiles;
+          i.oscaFiles = oscaFile;
           return i;
         });
 

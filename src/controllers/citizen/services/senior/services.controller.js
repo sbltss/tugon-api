@@ -120,6 +120,7 @@ export default class Controller {
 
       for (const file of files.id) {
         let [genIdUUID] = await transaction.query(`SELECT UUID() AS idUuid`);
+        console.log(file);
         const { idUuid } = genIdUUID[0];
 
         let [insertId] = await transaction.query(

@@ -39,13 +39,13 @@ const validateFiles = (fields) => {
       const files = req.files[field.name];
       console.log(field);
       if (!files || files.length < field.minCount) {
-        return res
-          .status(400)
-          .json({ message: `Minimum ${field.minCount} ${field.name}` });
+        return res.status(400).json({
+          message: `Please attach atleast ${field.minCount} valid ${field.name}`,
+        });
       } else if (files.length > field.maxCount) {
-        return res
-          .status(400)
-          .json({ message: `Maximum ${field.maxCount} ${field.name}` });
+        return res.status(400).json({
+          message: `Please attach atleast ${field.maxCount} valid ${field.name}`,
+        });
       }
     }
 
@@ -53,8 +53,6 @@ const validateFiles = (fields) => {
   };
 };
 
-// router.get("/getSeniorIds", controller.getSeniorIds);
-// router.get("/getSeniorIdsById/:id", controller.getSeniorIdsById);
 router.post(
   "/createSeniorId",
   upload.fields([
