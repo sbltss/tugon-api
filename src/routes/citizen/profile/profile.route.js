@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import path from "path"
+import path from "path";
 import fs from "fs";
 import randomize from "randomatic";
 import moment from "moment";
@@ -35,6 +35,7 @@ const upload = multer({ storage: storage });
 var router = express.Router();
 
 router.get("/getProfile", controller.getProfile);
+// router.get("/getProfile/:accountId", controller.getProfileAccountId);
 router.post(
   "/updateProfile",
   sanitizer,
@@ -59,7 +60,7 @@ router.post(
   (req, res, next) => {
     validate(req, res, next);
   },
-  controller.validateProfileStatus,
+  // controller.validateProfileStatus,
   controller.updateProfile
 );
 router.post(
@@ -67,6 +68,7 @@ router.post(
   upload.fields([
     { name: "identification", maxCount: 1 },
     { name: "document", maxCount: 1 },
+    { name: "image", maxCount: 1 },
   ]),
   validateStatus,
   controller.uploadSupportingFiles
@@ -74,28 +76,34 @@ router.post(
 
 //VERIFY EMAIL
 router.get("/reqVerifyEmail", controller.reqVerifyEmail);
-router.post("/verifyEmail",
-[check("token", "Token is required").notEmpty()],
-(req, res, next) => {
-  validate(req, res, next);
-}, controller.verifyEmail);
-
+router.post(
+  "/verifyEmail",
+  [check("token", "Token is required").notEmpty()],
+  (req, res, next) => {
+    validate(req, res, next);
+  },
+  controller.verifyEmail
+);
 
 //VERIFY MOBILE NUMBER
 router.get("/reqVerifyMobile", controller.reqVerifyMobile);
-router.post("/verifyMobile",
-[check("token", "Token is required").notEmpty()],
-(req, res, next) => {
-  validate(req, res, next);
-}, controller.verifyMobile);
+router.post(
+  "/verifyMobile",
+  [check("token", "Token is required").notEmpty()],
+  (req, res, next) => {
+    validate(req, res, next);
+  },
+  controller.verifyMobile
+);
 
-
-//CHANGE EMAIL 
+//CHANGE EMAIL
 router.post(
   "/reqChangeEmail",
   sanitizer,
-  [check("email", "Email is required").notEmpty(),
-  check("password", "Password is required").notEmpty()],
+  [
+    check("email", "Email is required").notEmpty(),
+    check("password", "Password is required").notEmpty(),
+  ],
   (req, res, next) => {
     validate(req, res, next);
   },
@@ -104,22 +112,24 @@ router.post(
 router.post(
   "/updateEmail",
   sanitizer,
-  [check("email", "Email is required").notEmpty(),
-  check("code", "Code is required").notEmpty()],
+  [
+    check("email", "Email is required").notEmpty(),
+    check("code", "Code is required").notEmpty(),
+  ],
   (req, res, next) => {
     validate(req, res, next);
   },
   controller.updateEmail
 );
 
-
-
 //CHANGE MOBILE
 router.post(
   "/changeMobileRequest",
   sanitizer,
-  [check("mobileNumber", "mobile number is required").notEmpty(),
-  check("password", "Password is required").notEmpty()],
+  [
+    check("mobileNumber", "mobile number is required").notEmpty(),
+    check("password", "Password is required").notEmpty(),
+  ],
   (req, res, next) => {
     validate(req, res, next);
   },
@@ -128,45 +138,44 @@ router.post(
 router.post(
   "/updateMobile",
   sanitizer,
-  [check("mobileNumber", "mobile number is required").notEmpty(),
-  check("code", "Code is required").notEmpty()],
+  [
+    check("mobileNumber", "mobile number is required").notEmpty(),
+    check("code", "Code is required").notEmpty(),
+  ],
   (req, res, next) => {
     validate(req, res, next);
   },
   controller.updateMobile
 );
 
-
 //CHANGE PASSWORD
 router.post(
   "/updatePassword",
   sanitizer,
-  [check("oldPassword", "Old Password is required").notEmpty(),
-  check("password", "New Password is required").notEmpty()],
+  [
+    check("oldPassword", "Old Password is required").notEmpty(),
+    check("password", "New Password is required").notEmpty(),
+  ],
   (req, res, next) => {
     validate(req, res, next);
   },
   controller.updatePassword
 );
 
-
 router.post(
   "/updateAddress",
   sanitizer,
-  [check("isHead", "Family Head is required").notEmpty(),
-  check("addressCode", "Address Code is required").notEmpty(),
-  check("familyHeadId", "Family Head ID is required").notEmpty(),
-  check("familyRelation", "Family Relation is required").notEmpty()
-],
+  [
+    check("isHead", "Family Head is required").notEmpty(),
+    check("addressCode", "Address Code is required").notEmpty(),
+    check("familyHeadId", "Family Head ID is required").notEmpty(),
+    check("familyRelation", "Family Relation is required").notEmpty(),
+  ],
   (req, res, next) => {
     validate(req, res, next);
   },
   controller.updateAddress
 );
-
-
-
-
 
 router.post(
   "/validateCode",
@@ -180,11 +189,5 @@ router.post(
   },
   controller.validateCode
 );
-
-
-
-
-
-
 
 export default router;

@@ -16,12 +16,14 @@
           "#citizen_ctrl_head": "./src/controllers/citizen/familyhead",
           "#citizen_crtl_senior": "./src/controllers/citizen/services/senior",
           "#citizen_crtl_pwd": "./src/controllers/citizen/services/pwd",
+          "#citizen_crtl_upao": "./src/controllers/citizen/services/upao",
           "#citizen_crtl_services": "./src/controllers/citizen/services",
 
           "#citizen_route": "./src/routes/citizen",
           "#citizen_route_head": "./src/routes/citizen/familyhead",
           "#citizen_route_senior": "./src/routes/citizen/services/senior",
           "#citizen_route_pwd": "./src/routes/citizen/services/pwd",
+          "#citizen_route_upao": "./src/routes/citizen/services/upao",
           "#citizen_route_services": "./src/routes/citizen/services",
 
           "#cms_ctrl": "./src/controllers/cms",

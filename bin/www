@@ -26,26 +26,23 @@ app.set("port", port);
 
 const createServer = () => {
   if (process.env.DOMAIN) {
-   const privateKeys = fs.readFileSync(
-     path.resolve(`/etc/letsencrypt/live/${process.env.DOMAIN}/privkey.pem`),
-     "utf8"
-   );
-   const cert = fs.readFileSync(
-     path.resolve(`/etc/letsencrypt/live/${process.env.DOMAIN}/cert.pem`),
-     "utf8"
-   );
-   const ca = fs.readFileSync(
-     path.resolve(`/etc/letsencrypt/live/${process.env.DOMAIN}/chain.pem`),
-     "utf8"
-   );
-   return https.createServer(
-      { key: privateKeys, cert: cert, ca: ca },
-     app
-   );
+    const privateKeys = fs.readFileSync(
+      path.resolve(`/etc/letsencrypt/live/${process.env.DOMAIN}/privkey.pem`),
+      "utf8"
+    );
+    const cert = fs.readFileSync(
+      path.resolve(`/etc/letsencrypt/live/${process.env.DOMAIN}/cert.pem`),
+      "utf8"
+    );
+    const ca = fs.readFileSync(
+      path.resolve(`/etc/letsencrypt/live/${process.env.DOMAIN}/chain.pem`),
+      "utf8"
+    );
+    return https.createServer({ key: privateKeys, cert: cert, ca: ca }, app);
   } else {
     return http.createServer(app);
   }
-}
+};
 const server = createServer();
 
 /**
@@ -110,5 +107,5 @@ function onListening() {
   const addr = server.address();
   const bind = typeof addr === "string" ? `pipe ${addr}` : `port ${addr.port}`;
   debug(`Listening on ${bind}`);
-  console.log("listening on port " + addr.port)
+  console.log("listening on port " + addr.port);
 }

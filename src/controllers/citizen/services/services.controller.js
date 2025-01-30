@@ -11,13 +11,12 @@ import unlinkFiles from "#helpers/unlinkfiles";
 export default class Controller {
   async getIdStatus(req, res, next) {
     let { accountId } = req.currentUser;
-
     try {
       let result = await req.db.query(
         `
         SELECT 
           sectorId,
-          status
+          isDeleted
         FROM citizen_sectors 
         WHERE 
           accountId = ?
